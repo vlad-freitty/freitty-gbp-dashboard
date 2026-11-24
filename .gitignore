@@ -1,0 +1,16 @@
+# secrets — never commit
+credentials.json
+token.json
+client_secret*.json
+.env
+
+# local working files (rebuilt from site/data.json in CI)
+gbp.db
+*.db-journal
+run.log
+locations_cache.json
+*.csv
+__pycache__/
+
+# local tooling
+.claude/

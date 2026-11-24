@@ -1,0 +1,114 @@
+# =====================================================================
+# FREITTY · GBP locations config
+# =====================================================================
+#
+# MODE — how the script picks which locations to pull:
+#
+#   include   (DEFAULT) — pull ONLY the locations listed in manual_locations.
+#             This calls ONLY the Performance API. Recommended on fresh
+#             Google Cloud projects, because Account Management API has a
+#             very strict quota (~1 request per minute).
+#
+#   auto      Pull EVERY location your Google account has access to.
+#             Requires Account Management API + Business Information API.
+#             Use this AFTER you've requested a quota bump from Google:
+#             https://support.google.com/business/contact/api_default
+#             Until then, stick with `include`.
+#
+#   exclude   `auto` minus the IDs listed in manual_locations.
+#             Same quota caveat as `auto`.
+#
+mode: include
+
+# To add a new location:
+#   1. Find its ID — easiest way is the GBP URL when editing the location,
+#      or run `list_locations.bat` (NOTE: list_locations also hits the
+#      quota-limited API and may need to wait/retry).
+#   2. Add a new entry below.
+#   3. Run pull_gbp.bat — the new location is picked up automatically and
+#      backfilled within `lookback_days` window. For full history of a
+#      newly-added location, run `backfill.bat`.
+manual_locations:
+  - name: Columbus
+    location_id: "14321646971697566776"
+  - name: Greenville
+    location_id: "5256669324741647146"
+  - name: Stockton
+    location_id: "8359299247178186565"
+  - name: San Bernardino
+    location_id: "7065315684478035187"
+  - name: Reno
+    location_id: "11381784620243030102"
+  - name: Denver
+    location_id: "6965163960831167337"
+  - name: Markham
+    location_id: "1580819533239928301"
+  - name: Alsip
+    location_id: "13219338884844666556"
+  - name: Arlington
+    location_id: "7058245675098208772"
+  - name: OHare
+    location_id: "646225786568580196"   
+  - name: Fletcher
+    location_id: "1865553024903591221"
+  - name: Fontana
+    location_id: "6169802896456559072"
+  - name: Fremont
+    location_id: "13219754795275294096"
+  - name: Houston
+    location_id: "4441089233447119131"
+  - name: Long Island
+    location_id: "18361429182998333264"
+  - name: New Jersey
+    location_id: "543121955724926954"
+
+
+# =====================================================================
+# AUTO-MODE CACHE
+# =====================================================================
+# In `auto` / `exclude` modes, the script fetches the location list from
+# the API. To avoid hitting the strict quota every single run, we cache
+# the result for this many hours. The cache file is `locations_cache.json`.
+# Set to 0 to disable caching (not recommended).
+auto_cache_hours: 168   # 7 days
+
+# =====================================================================
+# METRICS — which daily metrics to pull. Same set as the old Make scenario.
+# Other available ones (uncomment to enable):
+#   BUSINESS_CONVERSATIONS, BUSINESS_BOOKINGS,
+#   BUSINESS_FOOD_ORDERS, BUSINESS_FOOD_MENU_CLICKS
+# =====================================================================
+metrics:
+  - BUSINESS_IMPRESSIONS_DESKTOP_MAPS
+  - BUSINESS_IMPRESSIONS_DESKTOP_SEARCH
+  - BUSINESS_IMPRESSIONS_MOBILE_MAPS
+  - BUSINESS_IMPRESSIONS_MOBILE_SEARCH
+  - BUSINESS_DIRECTION_REQUESTS
+  - CALL_CLICKS
+  - WEBSITE_CLICKS
+
+# =====================================================================
+# TIME WINDOW
+# =====================================================================
+# Normal run window: last N days (GBP has ~2 day reporting lag).
+# 14 days = safe overlap; dedup is automatic via DB upsert.
+lookback_days: 14
+
+# Initial backfill window for `backfill.bat`.
+# Start with 180; bump to 540 (~18 months, the GBP max) when comfortable.
+initial_backfill_days: 540
+
+# =====================================================================
+# RATE LIMITING
+# =====================================================================
+# Pause (seconds) between Performance API calls for different locations.
+pause_between_locations_sec: 2
+
+# =====================================================================
+# PHASES
+# =====================================================================
+# Keywords: monthly search-term impressions (Keywords tab).
+enable_keywords: true
+# Day-of-week sub-entity: GBP returns HTTP 400 for all our locations, so it
+# only burns requests. The dashboard derives day-of-week from daily data.
+enable_dayofweek: false
