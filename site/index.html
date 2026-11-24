@@ -226,6 +226,25 @@
   .delta { font-size: 11px; margin-left: 4px; }
   .cmp-wrap { overflow-x: auto; }
   .kpi-delta.neg, .delta.neg { color: var(--danger); }
+
+  /* Calls tab */
+  .whoami { font-size: 12px; color: var(--text-muted); margin-left: 12px; }
+  .whoami a { color: var(--text-muted); }
+  .chip .dot { width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; display: inline-block; }
+  .chip.active .dot { box-shadow: 0 0 0 1.5px rgba(255,255,255,0.8); }
+  table.cmp tr.total th, table.cmp tr.total td { font-weight: 600; background: var(--surface-2); }
+  table.cmp td.neg { color: var(--danger); }
+  .calls-log td { vertical-align: top; }
+  .calls-log .sub, #calls-repeat .sub { font-size: 11px; color: var(--text-faint); }
+  .mono { font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .nowrap { white-space: nowrap; }
+  .badge-ok { background: var(--success-light); color: var(--success); }
+  .badge-bad { background: var(--danger-light); color: var(--danger); }
+  .badge-warn { background: var(--warn-light); color: var(--warn); }
+  .badge-new { background: var(--info-light); color: var(--info); font-size: 10px; padding: 1px 6px; }
+  #calls-heat td { text-align: center; min-width: 26px; }
+  #calls-more { margin-top: 10px; }
+  @media (max-width: 640px) { .global-filters { position: static; } }
 </style>
 </head>
 <body>
@@ -233,7 +252,7 @@
 
   <header>
     <h1><span class="accent-bar"></span>FREITTY · GBP performance</h1>
-    <span id="status" style="font-size:13px; color: var(--text-muted)">Loading…</span>
+    <span><span id="status" style="font-size:13px; color: var(--text-muted)">Loading…</span><span class="whoami" id="whoami"></span></span>
   </header>
   <p class="subtitle">Google Business Profile, all FREITTY locations. Refreshed automatically every day; GBP reports with a ~2-day lag.</p>
   <div id="banner"></div>
@@ -242,6 +261,7 @@
     <div class="tab active" data-tab="signals">Needs attention</div>
     <div class="tab" data-tab="performance">Performance</div>
     <div class="tab" data-tab="keywords">Keywords</div>
+    <div class="tab" data-tab="calls">Calls</div>
   </div>
 
   <!-- ====================== SIGNALS ====================== -->
@@ -372,6 +392,94 @@
     </div>
   </div>
 
+  <!-- ====================== CALLS (CallRail, live) ====================== -->
+  <div class="tab-content" id="tab-calls">
+    <div class="global-filters">
+      <div class="filters-inner">
+        <div class="filter-group"><label>Period</label>
+          <div class="seg" id="calls-preset">
+            <button data-days="7">7 days</button>
+            <button data-days="30" class="active">30 days</button>
+            <button data-days="90">90 days</button>
+            <button data-days="365">12 months</button>
+          </div>
+        </div>
+        <div class="filter-group"><label>From</label><input type="date" id="calls-from"></div>
+        <div class="filter-group"><label>To</label><input type="date" id="calls-to"></div>
+        <div class="filter-group"><label>Location</label><select id="calls-loc"><option value="all">All locations</option></select></div>
+        <button id="calls-refresh">Refresh</button>
+        <span class="panel-meta" id="calls-meta"></span>
+      </div>
+      <div class="filters-inner" style="margin-top:8px">
+        <div class="filter-group" style="width:100%; flex-wrap:wrap"><label>Channels</label><div class="checklist" id="calls-ch"></div></div>
+      </div>
+    </div>
+    <div id="calls-msg"></div>
+    <div id="calls-body" style="display:none">
+      <div class="kpis" id="calls-kpis"></div>
+
+      <div class="panel" style="margin-bottom:16px">
+        <div class="panel-head"><h2>Inbound calls by channel</h2>
+          <div class="seg" id="calls-gran">
+            <button data-val="day" class="active">Day</button>
+            <button data-val="week">Week</button>
+            <button data-val="month">Month</button>
+          </div>
+        </div>
+        <div class="chart-box" style="height:260px"><canvas id="calls-chart" role="img" aria-label="Inbound calls per period, stacked by channel"></canvas></div>
+      </div>
+
+      <div class="panel" style="margin-bottom:16px">
+        <div class="panel-head"><h2>By channel</h2><div class="panel-meta">Not reached = missed, and no answered call or callback from the same number later in the period.</div></div>
+        <div class="cmp-wrap"><table class="cmp" id="calls-by-ch"></table></div>
+      </div>
+      <div class="panel" style="margin-bottom:16px">
+        <div class="panel-head"><h2>By location</h2></div>
+        <div class="cmp-wrap"><table class="cmp" id="calls-by-loc"></table></div>
+      </div>
+
+      <div class="grid-section">
+        <div class="panel">
+          <div class="panel-head"><h2>When people call</h2>
+            <select id="calls-heat-metric"><option value="all">All calls</option><option value="missed">Missed calls</option></select>
+          </div>
+          <div class="panel-meta" style="margin-bottom:8px">Weekday × hour, in each location's own time zone.</div>
+          <div class="heat-wrap"><table class="heat" id="calls-heat"></table></div>
+        </div>
+        <div class="panel">
+          <div class="panel-head"><h2>Repeat callers</h2><div class="panel-meta" id="calls-repeat-meta"></div></div>
+          <div class="cmp-wrap" style="max-height:330px; overflow:auto"><table class="table" id="calls-repeat"></table></div>
+        </div>
+      </div>
+
+      <div class="panel" style="margin-bottom:16px">
+        <div class="panel-head"><h2>Call log</h2>
+          <div class="filter-group" style="gap:8px; flex-wrap:wrap">
+            <select id="calls-log-filter">
+              <option value="all">All inbound</option>
+              <option value="answered">Answered</option>
+              <option value="missed">Missed</option>
+              <option value="notreached">Missed, not reached</option>
+              <option value="first">First-time callers</option>
+              <option value="long">Talked 1 min+</option>
+              <option value="outbound">Outbound (callbacks)</option>
+            </select>
+            <input type="search" id="calls-search" placeholder="Number, name, city, campaign…">
+            <button class="primary" id="calls-export">Export CSV</button>
+          </div>
+        </div>
+        <div class="panel-meta" id="calls-log-meta" style="margin-bottom:6px"></div>
+        <div class="cmp-wrap"><table class="table calls-log" id="calls-log"></table></div>
+        <button id="calls-more">Show more</button>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head"><h2>Sources in CallRail</h2><div class="panel-meta">How each CallRail tracking number is counted. If a row lands in the wrong channel, the rules are in lib/callrail.js.</div></div>
+        <div class="cmp-wrap"><table class="cmp" id="calls-sources"></table></div>
+      </div>
+    </div>
+  </div>
+
 </div>
 
 <script>
@@ -462,6 +570,7 @@ function addDays(d, n) { const x = new Date(d); x.setUTCDate(x.getUTCDate() + n)
 
 async function loadData() {
   const res = await fetch("data.json", { cache: "no-store" });
+  if (res.status === 401) { location.href = "/api/auth/login?r=" + encodeURIComponent(location.pathname); throw new Error("Signed out"); }
   if (!res.ok) throw new Error("data.json: HTTP " + res.status);
   const j = await res.json();
   META = { generated_at: j.generated_at, last_pull: j.last_pull, start: new Date(j.start + "T00:00:00Z"), end: new Date(j.end + "T00:00:00Z") };
@@ -1118,8 +1227,14 @@ document.querySelectorAll(".tab").forEach(t => {
     document.getElementById("tab-" + t.dataset.tab).classList.add("active");
     // Chart.js can't size a canvas drawn inside a hidden tab — redraw on show
     if (t.dataset.tab === "keywords" && KEYWORDS.length) renderKeywords();
+    if (t.dataset.tab === "calls") window.CallsTab.show();
   });
 });
+
+// Signed-in user (served by /api/me behind the Microsoft sign-in)
+fetch("/api/me", { cache: "no-store" }).then(r => (r.ok ? r.json() : null)).then(u => {
+  if (u && u.email) document.getElementById("whoami").innerHTML = `${esc(u.name || u.email)} · <a href="/api/auth/logout">Sign out</a>`;
+}).catch(() => {});
 
 // Segmented controls
 function wireSegment(id, target) {
@@ -1174,5 +1289,6 @@ document.querySelectorAll("#kw-table th.sortable").forEach(th => {
 });
 boot();
 </script>
+<script src="calls.js"></script>
 </body>
 </html>

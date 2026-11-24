@@ -14,3 +14,6 @@ __pycache__/
 
 # local tooling
 .claude/
+
+# node
+node_modules/

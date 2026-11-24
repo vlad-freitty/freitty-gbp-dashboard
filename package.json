@@ -1,0 +1,12 @@
+{
+  "name": "freitty-gbp-dashboard",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node scripts/dev-server.mjs",
+    "test": "node scripts/test.mjs"
+  },
+  "dependencies": {
+    "@vercel/functions": "3.11.1"
+  }
+}

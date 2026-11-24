@@ -2,7 +2,7 @@
 
 Google Business Profile stats for all FREITTY locations, refreshed automatically every day.
 
-- **Dashboard**: `site/index.html` on Vercel. It has three tabs: *Needs attention* (week-over-week drops and growth, zero-impression listings, new search keywords), *Performance* (heat tables by period × location), and *Keywords*.
+- **Dashboard**: `site/index.html` on Vercel. It has four tabs: *Needs attention* (week-over-week drops and growth, zero-impression listings, new search keywords), *Performance* (heat tables by period × location), *Keywords*, and *Calls* (CallRail call log with caller numbers, stats by channel and location, CSV export).
 - **Data**: `site/data.json` is the single source of truth in git (about 1 MB, the full history since Nov 2024).
 - **Refresh**: GitHub Actions (`.github/workflows/daily-pull.yml`) runs every day at 06:15 UTC:
   1. `data_io.py import` rebuilds `gbp.db` from `data.json`.
@@ -17,6 +17,40 @@ Google Business Profile stats for all FREITTY locations, refreshed automatically
 3. **First run**: open Actions → *Daily GBP pull* → Run workflow and keep `days` = 14.
 
 Data commits are authored as `vlad-freitty`'s noreply address, because Vercel Hobby only auto-deploys private-repo commits made by the owner. To use someone else, set the repo variables `COMMIT_AUTHOR_NAME` and `COMMIT_AUTHOR_EMAIL`.
+
+## Sign-in and the Calls tab
+
+The whole site (dashboard, `data.json`, calls) is behind **Microsoft sign-in**: only accounts in the FREITTY Microsoft tenant get in (`middleware.js`). The **Calls** tab reads the call log **live from CallRail** through `/api/calls`. Customer phone numbers are never written to git.
+
+- Channels (Google Ads, Google Maps Ads, Google Maps organic, Google organic site) come from the rules in `CHANNEL_RULES` in `lib/callrail.js`. The *Sources in CallRail* table at the bottom of the tab shows how each tracking number was counted.
+- CallRail keeps calls for 25 months, so that's the longest period you can pick.
+
+### One-time setup
+
+1. **Microsoft Entra app** (portal.azure.com → Microsoft Entra ID → App registrations → New registration). This needs an admin of the FREITTY Microsoft 365 account.
+   - Name: `FREITTY dashboard`. Account type: *this organizational directory only*.
+   - Redirect URI: platform **Web**, `https://<vercel-domain>/api/auth/callback`.
+   - Authentication → tick **ID tokens**. No client secret is needed.
+   - Copy the **Application (client) ID** and the **Directory (tenant) ID**.
+2. **CallRail API key**: CallRail → Settings → Integrations → API Keys → create a key. Use a user that can see every company.
+3. **Vercel** → Project → Settings → Environment Variables (Production):
+
+   | Name | Value |
+   |---|---|
+   | `AUTH_TENANT_ID` | Directory (tenant) ID |
+   | `AUTH_CLIENT_ID` | Application (client) ID |
+   | `SESSION_SECRET` | random string, 32+ characters (`node -e "console.log(crypto.randomBytes(32).toString('base64url'))"`) |
+   | `CALLRAIL_API_KEY` | CallRail API key |
+   | `CALLRAIL_ACCOUNT_ID` | optional: the first account on the key is used by default |
+   | `ALLOWED_EMAILS` | optional: comma-separated list. If set, only these people can open the dashboard. |
+   | `SESSION_DAYS` | optional: sign-in lasts 7 days by default |
+
+   Set these **before** pushing. Until the three `AUTH_*`/`SESSION_SECRET` variables exist, the site shows "Sign-in is not configured" instead of the dashboard.
+4. To sign everyone out immediately, change `SESSION_SECRET` and redeploy.
+
+### Local preview with fake data
+
+`npm install`, then `npm test` runs the offline tests. `npm run dev` starts http://localhost:8765 with **fake** calls and a fake sign-in. It never calls CallRail or Microsoft.
 
 ## Day to day
 
