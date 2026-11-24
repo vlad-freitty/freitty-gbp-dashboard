@@ -1,8 +1,9 @@
-// Starts the Microsoft sign-in: OpenID Connect, id_token via form_post.
-// No client secret is needed; the id_token signature is checked in callback.js.
+// Starts the Microsoft sign-in: OpenID Connect, id_token via form_post, account picker every time
+// (prompt=select_account, as in the CS Wiki). No client secret is needed; callback.js checks the
+// id_token signature against Microsoft's published keys.
 
 import { authConfig, sign, cookie, NONCE_COOKIE, b64urlEncode, safeReturnPath } from "../../lib/session.js";
-import { page, esc } from "../../lib/pages.js";
+import { landing, esc } from "../../lib/pages.js";
 
 function randomId() {
   return b64urlEncode(crypto.getRandomValues(new Uint8Array(24)));
@@ -11,7 +12,7 @@ function randomId() {
 export async function GET(request) {
   const cfg = authConfig();
   if (cfg.missing.length) {
-    return page(500, "Sign-in is not configured", `<p>Missing: <code>${cfg.missing.map(esc).join(", ")}</code></p>`);
+    return landing({ status: 500, title: "Вхід ще не налаштовано", button: false, note: `У Vercel немає: <code>${cfg.missing.map(esc).join(", ")}</code>.` });
   }
   const url = new URL(request.url);
   const nonce = randomId();
@@ -28,6 +29,7 @@ export async function GET(request) {
     scope: "openid profile email",
     nonce,
     state,
+    prompt: "select_account",
   }).toString();
 
   return new Response(null, {

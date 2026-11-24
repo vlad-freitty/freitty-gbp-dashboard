@@ -92,6 +92,7 @@ async function signIn(claims = {}) {
   assert.equal(loc.origin + loc.pathname, `https://login.microsoftonline.com/${TENANT}/oauth2/v2.0/authorize`);
   assert.equal(loc.searchParams.get("redirect_uri"), `${base}/api/auth/callback`);
   assert.equal(loc.searchParams.get("response_mode"), "form_post");
+  assert.equal(loc.searchParams.get("prompt"), "select_account");
   const sc = res.headers.get("set-cookie");
   assert.match(sc, /SameSite=None/); assert.match(sc, /HttpOnly/); assert.match(sc, /Secure/);
   const pending = cookieVal(sc, NONCE_COOKIE);
@@ -113,6 +114,20 @@ await test("sign-in round trip sets a session and returns to the page", async ()
   assert.equal(who.email, "test.user@freitty.com");
 });
 
+await test("callback shows a friendly page when Microsoft denies access", async () => {
+  const res = await callback(new Request(`${base}/api/auth/callback`, {
+    method: "POST", body: new URLSearchParams({ error: "access_denied", error_description: "<b>x</b>" }),
+    headers: { "content-type": "application/x-www-form-urlencoded" },
+  }));
+  assert.equal(res.status, 403);
+  assert.match(await res.text(), /Доступ до дашборда не надано/);
+});
+
+await test("session lasts 12 hours by default", async () => {
+  const res = await signIn();
+  assert.match(res.headers.get("set-cookie"), /fs_session=[^;]+;[^,]*Max-Age=43200/);
+});
+
 await test("callback rejects a forged state", async () => {
   const res = await callback(new Request(`${base}/api/auth/callback`, {
     method: "POST", body: new URLSearchParams({ id_token: await idToken({ nonce: "x" }), state: "forged" }),
@@ -123,16 +138,20 @@ await test("callback rejects a forged state", async () => {
 
 await test("ALLOWED_EMAILS limits who gets in", async () => {
   process.env.ALLOWED_EMAILS = "someone.else@freitty.com";
-  assert.equal((await signIn()).status, 403);
+  const denied = await signIn();
+  assert.equal(denied.status, 403);
+  assert.match(await denied.text(), /не має доступу/);
   process.env.ALLOWED_EMAILS = "Someone.Else@freitty.com, test.user@freitty.com";
   assert.equal((await signIn()).status, 303);
   delete process.env.ALLOWED_EMAILS;
 });
 
 await test("middleware: redirects pages, 401s data, passes signed-in users", async () => {
-  const page = await middleware(new Request(`${base}/`, { headers: { accept: "text/html" } }));
-  assert.equal(page.status, 302);
-  assert.match(page.headers.get("location"), /\/api\/auth\/login\?r=%2F$/);
+  const page = await middleware(new Request(`${base}/?tab=calls`, { headers: { accept: "text/html" } }));
+  assert.equal(page.status, 200);
+  const html = await page.text();
+  assert.match(html, /Увійти через Microsoft/);
+  assert.match(html, /href="\/api\/auth\/login\?r=%2F%3Ftab%3Dcalls"/);
   assert.equal((await middleware(new Request(`${base}/data.json`))).status, 401);
   assert.equal((await middleware(new Request(`${base}/api/calls?from=2026-01-01&to=2026-01-02`))).status, 401);
   const ok = await middleware(new Request(`${base}/data.json`, { headers: { cookie: `${SESSION_COOKIE}=${encodeURIComponent(session)}` } }));
@@ -146,7 +165,9 @@ await test("middleware fails closed when sign-in is not configured", async () =>
   const res = await middleware(new Request(`${base}/`, { headers: { accept: "text/html" } }));
   process.env.AUTH_CLIENT_ID = keep;
   assert.equal(res.status, 500);
-  assert.match(await res.text(), /AUTH_CLIENT_ID/);
+  const t = await res.text();
+  assert.match(t, /AUTH_CLIENT_ID/);
+  assert.doesNotMatch(t, /Увійти через Microsoft/);
 });
 
 await test("matcher leaves /api/auth/* open and gates everything else", async () => {

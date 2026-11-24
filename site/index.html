@@ -570,7 +570,7 @@ function addDays(d, n) { const x = new Date(d); x.setUTCDate(x.getUTCDate() + n)
 
 async function loadData() {
   const res = await fetch("data.json", { cache: "no-store" });
-  if (res.status === 401) { location.href = "/api/auth/login?r=" + encodeURIComponent(location.pathname); throw new Error("Signed out"); }
+  if (res.status === 401) { location.reload(); throw new Error("Signed out"); }
   if (!res.ok) throw new Error("data.json: HTTP " + res.status);
   const j = await res.json();
   META = { generated_at: j.generated_at, last_pull: j.last_pull, start: new Date(j.start + "T00:00:00Z"), end: new Date(j.end + "T00:00:00Z") };

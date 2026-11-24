@@ -1,8 +1,11 @@
+// End the dashboard session. The Microsoft session stays, so the next sign-in is one click.
 import { cookie, SESSION_COOKIE } from "../../lib/session.js";
-import { page } from "../../lib/pages.js";
+import { landing } from "../../lib/pages.js";
 
 export async function GET() {
-  return page(200, "Signed out",
-    `<p>You are signed out of the FREITTY dashboard.</p><p><a class="btn" href="/api/auth/login">Sign in again</a></p>`,
-    { "Set-Cookie": cookie(SESSION_COOKIE, "", { maxAge: 0 }) });
+  return landing({
+    title: "Ви вийшли з дашборда", tone: "ok",
+    note: "Сесію в дашборді завершено. Щоб повернутися, увійдіть знову.",
+    headers: { "Set-Cookie": cookie(SESSION_COOKIE, "", { maxAge: 0 }) },
+  });
 }

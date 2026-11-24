@@ -97,7 +97,7 @@
       const qs = new URLSearchParams({ from: S.from, to: S.to });
       if (fresh) qs.set("fresh", "1");
       const res = await fetch("/api/calls?" + qs, { cache: "no-store" });
-      if (res.status === 401) { location.href = "/api/auth/login?r=" + encodeURIComponent(location.pathname); return; }
+      if (res.status === 401) { location.reload(); return; }
       const j = await res.json().catch(() => ({ error: "HTTP " + res.status }));
       if (!res.ok) throw new Error(j.error || "HTTP " + res.status);
       prepare(j);

@@ -43,10 +43,13 @@ The whole site (dashboard, `data.json`, calls) is behind **Microsoft sign-in**: 
    | `CALLRAIL_API_KEY` | CallRail API key |
    | `CALLRAIL_ACCOUNT_ID` | optional: the first account on the key is used by default |
    | `ALLOWED_EMAILS` | optional: comma-separated list. If set, only these people can open the dashboard. |
-   | `SESSION_DAYS` | optional: sign-in lasts 7 days by default |
+   | `SESSION_HOURS` | optional: sign-in lasts 12 hours by default (same as the CS Wiki) |
 
-   Set these **before** pushing. Until the three `AUTH_*`/`SESSION_SECRET` variables exist, the site shows "Sign-in is not configured" instead of the dashboard.
-4. To sign everyone out immediately, change `SESSION_SECRET` and redeploy.
+   Set these **before** pushing. Until the three `AUTH_*`/`SESSION_SECRET` variables exist, the site shows "Вхід ще не налаштовано" instead of the dashboard.
+4. **Who can sign in** (same as the CS Wiki): Entra → Enterprise applications → this app → Properties → *Assignment required* = **Yes**, then add people or groups under *Users and groups*. Anyone not assigned gets "Доступ до дашборда не надано". Without this, everyone in the FREITTY tenant can sign in (or only `ALLOWED_EMAILS`, if set).
+5. To sign everyone out immediately, change `SESSION_SECRET` and redeploy.
+
+Signed-out visitors first see the dashboard's own sign-in page with a "Увійти через Microsoft" button. Microsoft then always shows the account picker (`prompt=select_account`), as in the CS Wiki.
 
 ### Local preview with fake data
 
