@@ -28,8 +28,10 @@
     <a class="nav-brand title-4" href="#overview"><span class="mark">F</span>Google Business</a>
     <div class="nav-links" id="nav-links">
       <a class="nav-link body-5" href="#overview" data-page="overview"><i class="ph ph-squares-four" aria-hidden="true"></i>Огляд</a>
+      <a class="nav-link body-5" href="#matrix" data-page="matrix"><i class="ph ph-grid-nine" aria-hidden="true"></i>Матриці</a>
       <a class="nav-link body-5" href="#hub" data-page="hub"><i class="ph ph-map-pin" aria-hidden="true"></i>Хаб</a>
-      <a class="nav-link body-5" href="#search" data-page="search"><i class="ph ph-magnifying-glass" aria-hidden="true"></i>Пошуковий попит</a>
+      <a class="nav-link body-5" href="#reviews" data-page="reviews"><i class="ph ph-star" aria-hidden="true"></i>Відгуки</a>
+      <a class="nav-link body-5" href="#search" data-page="search"><i class="ph ph-magnifying-glass" aria-hidden="true"></i>Пошук</a>
       <a class="nav-link body-5" href="#posts" data-page="posts"><i class="ph ph-megaphone" aria-hidden="true"></i>Публікації</a>
       <a class="nav-link body-5" href="#forecast" data-page="forecast"><i class="ph ph-chart-line-up" aria-hidden="true"></i>Прогноз</a>
       <a class="nav-link body-5" href="#calls" data-page="calls"><i class="ph ph-phone" aria-hidden="true"></i>Дзвінки</a>
@@ -108,6 +110,67 @@
         <div class="card-tools"><input type="search" id="ov-search" placeholder="Пошук хабу" aria-label="Пошук хабу"></div>
       </div>
       <div class="table-wrap tall"><table class="t" id="ov-table"></table></div>
+    </div>
+  </section>
+
+  <!-- ===================== МАТРИЦІ ===================== -->
+  <section class="page" id="page-matrix">
+    <div class="filterbar">
+      <span class="caption-4 muted">Деталізація</span>
+      <div class="seg" id="mx-gran" role="group" aria-label="Деталізація"><button type="button" data-v="day">День</button><button type="button" data-v="week">Тиждень</button><button type="button" data-v="month">Місяць</button></div>
+      <span class="sep" aria-hidden="true"></span>
+      <span class="caption-4 muted">Рядки</span>
+      <div class="seg" id="mx-rows" role="group" aria-label="Рядки"><button type="button" data-v="period">Періоди</button><button type="button" data-v="hub">Хаби</button></div>
+      <span class="sep" aria-hidden="true"></span>
+      <span class="caption-4 muted">Значення</span>
+      <div class="seg" id="mx-cell" role="group" aria-label="Значення"><button type="button" data-v="abs">Кількість</button><button type="button" data-v="row">% рядка</button><button type="button" data-v="col">% стовпця</button></div>
+    </div>
+    <div class="filterbar" style="margin-top:-16px"><span class="caption-4 muted">Хаби</span><div class="chips" id="mx-locs"></div></div>
+    <p class="caption-5 muted" id="mx-note" style="margin:-8px 0 16px"></p>
+    <div class="grid cols-2" id="mx-grid"></div>
+    <div class="card">
+      <div class="card-head">
+        <div><h2 class="title-3">Дні тижня</h2><p class="note caption-5">Рядки: періоди; стовпці: день тижня. Обрані хаби разом. У режимі «% рядка» видно, на які дні припадає активність.</p></div>
+        <div class="card-tools">
+          <select id="mx-dow-metric" aria-label="Метрика"></select>
+          <select id="mx-dow-cell" aria-label="Значення"><option value="row">% рядка</option><option value="abs">Кількість</option></select>
+        </div>
+      </div>
+      <div class="table-wrap mx-wrap"><table class="heat mx" id="mx-dow"></table></div>
+    </div>
+  </section>
+
+  <!-- ===================== ВІДГУКИ ===================== -->
+  <section class="page" id="page-reviews">
+    <div class="kpis" id="rv-kpis"></div>
+    <div class="card">
+      <div class="card-head"><div><h2 class="title-3">Потребують відповіді</h2><p class="note caption-5" id="rv-todo-note"></p></div></div>
+      <div class="table-wrap tall" id="rv-todo"></div>
+    </div>
+    <div class="grid cols-2" style="margin-top:16px">
+      <div class="card">
+        <div class="card-head"><div><h2 class="title-3">Оцінка за хабами</h2><p class="note caption-5">Середня оцінка за Google і кількість відгуків. Найнижча вгорі. Натисніть, щоб побачити відгуки хабу.</p></div></div>
+        <div id="rv-hubs"></div>
+      </div>
+      <div class="card">
+        <div class="card-head"><div><h2 class="title-3">Оцінки нових відгуків</h2><p class="note caption-5">Відгуки обраного періоду.</p></div></div>
+        <div id="rv-dist"></div>
+        <div class="card-head" style="margin:24px 0 16px"><div><h2 class="title-3">Нові відгуки за місяцями</h2></div></div>
+        <div class="legend" id="rv-months-legend"></div>
+        <div id="rv-months"></div>
+      </div>
+    </div>
+    <div class="card" style="margin-top:16px">
+      <div class="card-head">
+        <div><h2 class="title-3">Усі відгуки</h2><p class="note caption-5">Уся історія відгуків з Google, з відповідями власника.</p></div>
+        <div class="card-tools">
+          <select id="rv-hub" aria-label="Хаб"></select>
+          <select id="rv-stars" aria-label="Оцінка"></select>
+          <select id="rv-reply" aria-label="Відповідь"></select>
+          <input type="search" id="rv-q" placeholder="Пошук у тексті" aria-label="Пошук у тексті">
+        </div>
+      </div>
+      <div class="table-wrap tall"><table class="t" id="rv-table"></table></div>
     </div>
   </section>
 
@@ -353,6 +416,8 @@
 <script src="intent.js"></script>
 <script src="app.js"></script>
 <script src="forecast.js"></script>
+<script src="matrix.js"></script>
+<script src="reviews.js"></script>
 <script src="calls.js"></script>
 </body>
 </html>

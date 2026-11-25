@@ -94,6 +94,17 @@
       p.t = p.create_time ? new Date(p.create_time) : null;
       return p;
     });
+    // reviews
+    const rv = j.reviews || {}, rc = rv.cols || [];
+    D.reviews = (rv.rows || []).map(r => {
+      const x = Object.fromEntries(rc.map((c, i) => [c, r[i]]));
+      x.locId = j.locations[x.loc].id; x.hub = j.locations[x.loc].name;
+      x.ts = x.create_time ? Date.parse(x.create_time) : 0;
+      x.replyTs = x.reply_time ? Date.parse(x.reply_time) : 0;
+      return x;
+    });
+    D.reviewSummary = {};
+    for (const [li, [avg, total]] of Object.entries(rv.summary || {})) D.reviewSummary[j.locations[+li].id] = { avg, total };
     D.ready = true;
   }
 
@@ -264,6 +275,12 @@
         else if (pct >= SIG.upPct / 100) out.push({ sev: "up", hub: l.name, t: `${label} ${fmtDelta(pct)}`, b: `${fmtInt(cur)} за останні 7 днів проти ~${fmtInt(base)} на тиждень раніше.`, pct });
       }
     }
+    // new negative reviews (last 14 days), unanswered ones flagged hardest
+    const since = Date.now() - 14 * DAY;
+    for (const r of D.reviews || []) {
+      if (!(r.ts >= since) || !r.stars || r.stars > 3) continue;
+      out.push({ sev: r.reply ? "down" : "crit", hub: r.hub, t: `Відгук ${r.stars}★${r.reply ? "" : ", без відповіді"}`, b: r.comment ? `«${r.comment.replace(/\s+/g, " ").slice(0, 110)}${r.comment.length > 110 ? "…" : ""}»` : "Оцінка без тексту.", link: `#reviews/${encodeURIComponent(r.hub)}`, pct: -1 });
+    }
     const order = { crit: 0, down: 1, up: 2 };
     return { list: out.sort((x, y) => order[x.sev] - order[y.sev] || (x.pct ?? 0) - (y.pct ?? 0)), cA, e, bA, bB };
   }
@@ -297,12 +314,12 @@
     $("sig-window").textContent = `Останні 7 днів (${fmtDay(dateAt(S.cA))} – ${fmtDay(dateAt(S.e))}) проти середнього тижня за ${fmtDay(dateAt(S.bA))} – ${fmtDay(dateAt(S.bB))}. Позначено падіння від ${SIG.dropPct}% і зростання від ${SIG.upPct}%; хаби з малою базою не враховано.`;
     const icon = { crit: "ph-fill ph-warning-octagon", down: "ph-fill ph-trend-down", up: "ph-fill ph-trend-up" };
     const bad = S.list.filter(s => s.sev !== "up"), good = S.list.filter(s => s.sev === "up");
-    const card = s => `<button type="button" class="signal ${s.sev}" data-hub="${esc(s.hub)}"><i class="ph ${icon[s.sev]}" aria-hidden="true"></i><span><span class="t">${esc(s.hub)} · ${esc(s.t)}</span><span class="b" style="display:block">${esc(s.b)}</span></span></button>`;
+    const card = s => `<button type="button" class="signal ${s.sev}" data-hub="${esc(s.hub)}" data-link="${esc(s.link || "")}"><i class="ph ${icon[s.sev]}" aria-hidden="true"></i><span><span class="t">${esc(s.hub)} · ${esc(s.t)}</span><span class="b" style="display:block">${esc(s.b)}</span></span></button>`;
     $("ov-signals").innerHTML =
       (bad.length ? `<div class="caption-4 muted" style="margin-bottom:8px">Потребує перевірки: ${bad.length}</div><div class="signals">${bad.map(card).join("")}</div>`
         : `<div class="ok-note body-5"><i class="ph ph-check-circle" aria-hidden="true"></i>Жоден хаб не просів на ${SIG.dropPct}% і більше. Термінового нічого.</div>`) +
       (good.length ? `<div class="caption-4 muted" style="margin:16px 0 8px">Зростають: ${good.length}</div><div class="signals">${good.map(card).join("")}</div>` : "");
-    $("ov-signals").querySelectorAll(".signal").forEach(btn => btn.addEventListener("click", () => { location.hash = hubLink(btn.dataset.hub); }));
+    $("ov-signals").querySelectorAll(".signal").forEach(btn => btn.addEventListener("click", () => { location.hash = btn.dataset.link || hubLink(btn.dataset.hub); }));
 
     // monthly
     const MS = monthlySeries(D.locs, a, b);
@@ -354,19 +371,20 @@
       const pace = daysCur > 0 ? (sum(s.l.id, ACTIONS, curA, lastIdx) / daysCur) * dim : null;
       const prevFull = sum(s.l.id, ACTIONS, prevA, prevB);
       return { hub: s.l.name, calls: s.calls, dCalls: prevCalls > 0 ? (s.calls - prevCalls) / prevCalls : null, dir: s.dir, web: s.web, inter: s.inter,
-        views: s.views, rate: s.rate, maps: s.mapsShare, buyer: mix.buyerShare, pace: prevFull > 0 && pace != null ? (pace - prevFull) / prevFull : null };
+        views: s.views, rate: s.rate, maps: s.mapsShare, buyer: mix.buyerShare, pace: prevFull > 0 && pace != null ? (pace - prevFull) / prevFull : null,
+        rating: (D.reviewSummary[s.l.id] || {}).avg ?? null, nRev: (D.reviewSummary[s.l.id] || {}).total ?? null };
     });
     const q = UI.ovQ.trim().toLowerCase();
     const shown = sortRows(rows.filter(r => !q || r.hub.toLowerCase().includes(q)), UI.ovSort);
     const maxCalls = Math.max(1, ...rows.map(r => r.calls));
     const st = UI.ovSort, tbl = $("ov-table");
     const dcls = v => (v == null ? "zero" : v > 0.005 ? "pos" : v < -0.005 ? "neg" : "zero");
-    tbl.innerHTML = `<thead><tr>${th("Хаб", "hub", st, { type: "text" })}${th("Дзвінки", "calls", st, { num: true })}${th("Зміна", "dCalls", st, { num: true, title: "Дзвінки проти попереднього періоду такої ж довжини" })}${th("Маршрути", "dir", st, { num: true })}${th("Переходи на сайт", "web", st, { num: true })}${th("Взаємодії", "inter", st, { num: true })}${th("Перегляди", "views", st, { num: true })}${th("Коеф. взаємодії", "rate", st, { num: true, title: "Взаємодії / перегляди профілю" })}${th("Частка Карт", "maps", st, { num: true })}${th("Купівельний намір", "buyer", st, { num: true, title: "Частка купівельних серед врахованих пошукових запитів" })}${th("Темп місяця", "pace", st, { num: true, title: "Взаємодії поточного місяця в перерахунку на повний місяць проти минулого місяця" })}</tr></thead><tbody>` +
+    tbl.innerHTML = `<thead><tr>${th("Хаб", "hub", st, { type: "text" })}${th("Дзвінки", "calls", st, { num: true })}${th("Зміна", "dCalls", st, { num: true, title: "Дзвінки проти попереднього періоду такої ж довжини" })}${th("Маршрути", "dir", st, { num: true })}${th("Переходи на сайт", "web", st, { num: true })}${th("Взаємодії", "inter", st, { num: true })}${th("Перегляди", "views", st, { num: true })}${th("Коеф. взаємодії", "rate", st, { num: true, title: "Взаємодії / перегляди профілю" })}${th("Частка Карт", "maps", st, { num: true })}${th("Купівельний намір", "buyer", st, { num: true, title: "Частка купівельних серед врахованих пошукових запитів" })}${th("Темп місяця", "pace", st, { num: true, title: "Взаємодії поточного місяця в перерахунку на повний місяць проти минулого місяця" })}${th("Оцінка", "rating", st, { num: true, title: "Середня оцінка Google і кількість відгуків" })}</tr></thead><tbody>` +
       (shown.length ? shown.map(r => `<tr class="clickable" tabindex="0" data-hub="${esc(r.hub)}"><td class="body-5">${esc(r.hub)}</td>
         <td class="num"><span class="inline-bar"><span class="bar" style="width:${Math.max(2, (64 * r.calls) / maxCalls)}px"></span>${fmtInt(r.calls)}</span></td>
         <td class="num ${dcls(r.dCalls)}">${fmtDelta(r.dCalls)}</td><td class="num">${fmtInt(r.dir)}</td><td class="num">${fmtInt(r.web)}</td><td class="num">${fmtInt(r.inter)}</td>
-        <td class="num">${fmtInt(r.views)}</td><td class="num">${fmtPct(r.rate)}</td><td class="num">${fmtPct(r.maps)}</td><td class="num">${fmtPct(r.buyer)}</td><td class="num ${dcls(r.pace)}">${fmtDelta(r.pace)}</td></tr>`).join("")
-        : `<tr><td colspan="11">${empty("Жоден хаб не відповідає пошуку.", "ph-magnifying-glass")}</td></tr>`) + "</tbody>";
+        <td class="num">${fmtInt(r.views)}</td><td class="num">${fmtPct(r.rate)}</td><td class="num">${fmtPct(r.maps)}</td><td class="num">${fmtPct(r.buyer)}</td><td class="num ${dcls(r.pace)}">${fmtDelta(r.pace)}</td><td class="num">${r.rating != null ? `${r.rating.toFixed(1).replace(".", ",")} <span class="sub">(${fmtInt(r.nRev)})</span>` : "—"}</td></tr>`).join("")
+        : `<tr><td colspan="12">${empty("Жоден хаб не відповідає пошуку.", "ph-magnifying-glass")}</td></tr>`) + "</tbody>";
     sortable(tbl, st, () => renderOverviewTable(stats));
     tbl.querySelectorAll("tr.clickable").forEach(tr => {
       const go = () => { location.hash = hubLink(tr.dataset.hub); };
@@ -398,6 +416,11 @@
       { label: "Маршрути", icon: "ph-navigation-arrow", value: fmtInt(s.dir), delta: deltaHtml(s.dir, p.dir), spark: weeklyValues([loc], ["dir"], a, b) },
       { label: "Переходи на сайт", icon: "ph-globe", value: fmtInt(s.web), delta: deltaHtml(s.web, p.web), spark: weeklyValues([loc], ["web"], a, b) },
       { label: "Коефіцієнт взаємодії", icon: "ph-hand-tap", value: fmtPct(s.rate), delta: p.rate ? deltaHtml(s.rate, p.rate) : "" },
+      (() => {
+        const rs = D.reviewSummary[loc.id] || {}, mine = (D.reviews || []).filter(r => r.locId === loc.id), open = mine.filter(r => !r.reply).length;
+        return { label: "Оцінка в Google", icon: "ph-star", value: rs.avg != null ? rs.avg.toFixed(1).replace(".", ",") : "—",
+          delta: `<span>${fmtInt(rs.total || 0)} відгуків</span>${open ? `<a class="down" href="#reviews/${encodeURIComponent(loc.name)}">${open} без відповіді</a>` : ""}` };
+      })(),
     ]);
     const MS = monthlySeries([loc], a, b);
     legend($("hub-monthly-legend"), ACTION_SERIES);
@@ -637,10 +660,12 @@
   // =====================================================================
   // ROUTER + SHELL
   // =====================================================================
-  const PAGES = ["overview", "hub", "search", "posts", "forecast", "calls"];
-  const TITLES = { overview: "Профілі Google Business", search: "Пошуковий попит", posts: "Публікації", forecast: "Прогноз", calls: "Дзвінки з CallRail" };
+  const PAGES = ["overview", "matrix", "hub", "reviews", "search", "posts", "forecast", "calls"];
+  const TITLES = { overview: "Профілі Google Business", matrix: "Матриці", reviews: "Відгуки", search: "Пошуковий попит", posts: "Публікації", forecast: "Прогноз", calls: "Дзвінки з CallRail" };
   const LEADS = {
     overview: "Усі хаби Freitty. Дані оновлюються щодня; Google звітує з затримкою близько двох днів.",
+    matrix: "Кожна метрика як теплова таблиця: період × хаб. Темніше означає більше.",
+    reviews: "Відгуки Google на профілях усіх хабів: оцінки, тексти й відповіді власника. Оновлюється щодня.",
     search: "Що люди шукали в Google, перш ніж побачити профіль хабу. Google дає запити помісячно.",
     posts: "Дописи на профілях Google Business: що, де і коли вийшло. Оновлюється щодня.",
     forecast: "Три наступні місяці за вісьмома моделями, зважено за точністю на історії.",
@@ -652,6 +677,7 @@
     UI.page = PAGES.includes(page) ? page : "overview";
     if (UI.page === "hub" && arg) UI.hub = arg;
     if (UI.page === "posts" && arg) UI.postsHub = arg;
+    if (UI.page === "reviews" && arg) UI.reviewsHub = arg;
     if (UI.page === "forecast") UI.fcScope = arg || UI.fcScope || "network";
     document.querySelectorAll(".page").forEach(s => s.classList.toggle("active", s.id === "page-" + UI.page));
     document.querySelectorAll(".nav-link").forEach(a => { if (a.dataset.page === UI.page) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current"); });
@@ -669,6 +695,8 @@
       if (UI.page === "overview") renderOverview();
       else if (UI.page === "hub") renderHub();
       else if (UI.page === "search") renderSearch();
+      else if (UI.page === "matrix") window.Matrix && window.Matrix.render();
+      else if (UI.page === "reviews") window.Reviews && window.Reviews.render();
       else if (UI.page === "posts") renderPosts();
       else if (UI.page === "forecast") window.Forecast && window.Forecast.render();
       else if (UI.page === "calls") window.CallsTab && window.CallsTab.show();

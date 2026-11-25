@@ -83,11 +83,25 @@ def cmd_import() -> None:
             """INSERT INTO gbp_posts VALUES (:post_id, :location_id, :location_name, :create_time, :update_time,
                :state, :topic_type, :summary, :cta_type, :cta_url, :media_format, :media_count, :event_title,
                :event_start, :event_end, :search_url, :pulled_at)""", post_rows)
+    revs = data.get("reviews", {})
+    rcols = revs.get("cols", [])
+    rev_rows = []
+    for r in revs.get("rows", []):
+        x = dict(zip(rcols, r))
+        li = x.pop("loc")
+        rev_rows.append({**x, "location_id": locs[li]["id"], "location_name": locs[li]["name"], "pulled_at": stamp})
+    if rev_rows:
+        conn.executemany(
+            """INSERT INTO gbp_reviews VALUES (:review_id, :location_id, :location_name, :create_time, :update_time,
+               :stars, :comment, :reviewer, :reply, :reply_time, :pulled_at)""", rev_rows)
+    for li, (avg, total) in (revs.get("summary") or {}).items():
+        conn.execute("INSERT INTO gbp_review_summary VALUES (?, ?, ?, ?)", (locs[int(li)]["id"], avg, total, stamp))
     conn.commit()
     conn.close()
-    print(f"Imported {len(rows)} daily + {len(kw_rows)} keyword + {len(post_rows)} post rows into {DB_FILE.name}")
+    print(f"Imported {len(rows)} daily + {len(kw_rows)} keyword + {len(post_rows)} post + {len(rev_rows)} review rows into {DB_FILE.name}")
 
 
+REVIEW_COLS = ["review_id", "loc", "create_time", "update_time", "stars", "comment", "reviewer", "reply", "reply_time"]
 POST_COLS = ["post_id", "loc", "create_time", "update_time", "state", "topic_type", "summary", "cta_type",
              "cta_url", "media_format", "media_count", "event_title", "event_start", "event_end", "search_url"]
 
@@ -152,6 +166,16 @@ def cmd_export() -> None:
         if row[1] in loc_index:
             post_rows.append([row[0], loc_index[row[1]], *row[2:]])
 
+    rev_rows = []
+    for row in cur.execute(
+        """SELECT review_id, location_id, create_time, update_time, stars, comment, reviewer, reply, reply_time
+             FROM gbp_reviews ORDER BY location_id, create_time DESC"""
+    ):
+        if row[1] in loc_index:
+            rev_rows.append([row[0], loc_index[row[1]], *row[2:]])
+    rev_summary = {str(loc_index[lid]): [avg, total] for lid, avg, total in
+                   cur.execute("SELECT location_id, avg_rating, total FROM gbp_review_summary") if lid in loc_index}
+
     run = cur.execute(
         "SELECT started_at, finished_at, status, note FROM pull_runs ORDER BY started_at DESC LIMIT 1"
     ).fetchone()
@@ -179,13 +203,16 @@ def cmd_export() -> None:
     out.append("]},")
     out.append(f'"posts":{{"cols":{j(POST_COLS)},"rows":[')
     out.append(",\n".join(j(r) for r in post_rows))
+    out.append("]},")
+    out.append(f'"reviews":{{"cols":{j(REVIEW_COLS)},"summary":{j(rev_summary)},"rows":[')
+    out.append(",\n".join(j(r) for r in rev_rows))
     out.append("]}")
     out.append("}")
     JSON_FILE.parent.mkdir(exist_ok=True)
     JSON_FILE.write_text("\n".join(out) + "\n", encoding="utf-8", newline="\n")
     size_kb = JSON_FILE.stat().st_size / 1024
     print(f"Exported {start}..{end} ({n_days} days, {len(locations)} locations) "
-          f"+ {len(kw_rows)} keyword rows + {len(post_rows)} posts -> {JSON_FILE.relative_to(HERE)} ({size_kb:.0f} KB)")
+          f"+ {len(kw_rows)} keyword rows + {len(post_rows)} posts + {len(rev_rows)} reviews -> {JSON_FILE.relative_to(HERE)} ({size_kb:.0f} KB)")
 
 
 if __name__ == "__main__":

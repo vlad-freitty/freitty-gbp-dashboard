@@ -372,6 +372,52 @@ def fetch_posts(creds, account_id: str, location_id: str) -> list[dict]:
     return out
 
 
+STARS = {"ONE": 1, "TWO": 2, "THREE": 3, "FOUR": 4, "FIVE": 5}
+
+
+def fetch_reviews(creds, account_id: str, location_id: str) -> tuple[list[dict], float | None, int | None]:
+    """All reviews of one location (GBP v4 API) + Google's own average and total."""
+    url = f"{POSTS_API_BASE}/accounts/{account_id}/locations/{location_id}/reviews"
+    out, token, avg, total = [], None, None, None
+    while True:
+        params = {"pageSize": "50", "orderBy": "updateTime desc"}
+        if token:
+            params["pageToken"] = token
+        data = http_get(creds, url, params)
+        avg = data.get("averageRating", avg)
+        total = data.get("totalReviewCount", total)
+        for r in data.get("reviews", []):
+            reply = r.get("reviewReply") or {}
+            rev = r.get("reviewer") or {}
+            out.append({
+                "review_id": r.get("reviewId") or r.get("name", "").rsplit("/", 1)[-1],
+                "create_time": r.get("createTime", ""),
+                "update_time": r.get("updateTime", ""),
+                "stars": STARS.get(r.get("starRating", ""), None),
+                "comment": r.get("comment", ""),
+                "reviewer": "" if rev.get("isAnonymous") else rev.get("displayName", ""),
+                "reply": reply.get("comment", ""),
+                "reply_time": reply.get("updateTime", ""),
+            })
+        token = data.get("nextPageToken")
+        if not token:
+            break
+    return out, avg, total
+
+
+def db_replace_reviews(conn: sqlite3.Connection, location_id: str, location_name: str, reviews: list[dict],
+                       avg: float | None, total: int | None, pulled_at: str) -> int:
+    conn.execute("DELETE FROM gbp_reviews WHERE location_id = ?", (location_id,))
+    conn.executemany(
+        """INSERT OR REPLACE INTO gbp_reviews VALUES (:review_id, :location_id, :location_name, :create_time,
+           :update_time, :stars, :comment, :reviewer, :reply, :reply_time, :pulled_at)""",
+        [{**r, "location_id": location_id, "location_name": location_name, "pulled_at": pulled_at} for r in reviews],
+    )
+    conn.execute("INSERT OR REPLACE INTO gbp_review_summary VALUES (?, ?, ?, ?)", (location_id, avg, total, pulled_at))
+    conn.commit()
+    return len(reviews)
+
+
 def db_replace_posts(conn: sqlite3.Connection, location_id: str, location_name: str,
                      posts: list[dict], pulled_at: str) -> int:
     """Posts are a current list, not history: replace this location's set."""
@@ -555,6 +601,28 @@ CREATE TABLE IF NOT EXISTS gbp_posts (
     pulled_at      TEXT    NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_posts_loc ON gbp_posts(location_id);
+
+CREATE TABLE IF NOT EXISTS gbp_reviews (
+    review_id      TEXT    NOT NULL PRIMARY KEY,
+    location_id    TEXT    NOT NULL,
+    location_name  TEXT    NOT NULL,
+    create_time    TEXT,
+    update_time    TEXT,
+    stars          INTEGER,    -- 1..5
+    comment        TEXT,
+    reviewer       TEXT,
+    reply          TEXT,
+    reply_time     TEXT,
+    pulled_at      TEXT    NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_reviews_loc ON gbp_reviews(location_id);
+
+CREATE TABLE IF NOT EXISTS gbp_review_summary (
+    location_id    TEXT    NOT NULL PRIMARY KEY,
+    avg_rating     REAL,
+    total          INTEGER,
+    pulled_at      TEXT    NOT NULL
+);
 
 CREATE TABLE IF NOT EXISTS pull_runs (
     started_at   TEXT NOT NULL,
@@ -1059,6 +1127,28 @@ def cmd_pull(backfill: bool, days_override: int | None, export_only: bool,
             if pause_between > 0 and i < len(locations) - 1:
                 _time.sleep(pause_between)
         log.info("Phase 4 done: %d posts", n_posts)
+
+    # =====================================================================
+    # PHASE 5 — reviews (current list per location + Google's average)
+    # =====================================================================
+    if bool(cfg.get("enable_reviews", True)):
+        log.info("")
+        log.info("=== PHASE 5: reviews ===")
+        n_rev = 0
+        for i, loc in enumerate(locations):
+            name, loc_id, acc = loc["name"], str(loc["location_id"]), loc.get("account_id")
+            if not acc:
+                continue
+            try:
+                revs, avg, total = fetch_reviews(creds, acc, loc_id)
+                n_rev += db_replace_reviews(conn, loc_id, name, revs, avg, total, pulled_at)
+                log.info("  [%d/%d] %-30s OK  %d reviews, avg %s", i + 1, len(locations), name, len(revs), avg)
+            except Exception as e:
+                log.error("  [%d/%d] %-30s reviews error: %s", i + 1, len(locations), name, e)
+                all_failures.append(f"Phase5/{name}: {e}")
+            if pause_between > 0 and i < len(locations) - 1:
+                _time.sleep(pause_between)
+        log.info("Phase 5 done: %d reviews", n_rev)
 
     # =====================================================================
     # CSV exports
