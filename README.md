@@ -2,13 +2,22 @@
 
 Google Business Profile stats for all FREITTY locations, refreshed automatically every day.
 
-- **Dashboard**: `site/index.html` on Vercel. It has four tabs: *Needs attention* (week-over-week drops and growth, zero-impression listings, new search keywords), *Performance* (heat tables by period × location), *Keywords*, and *Calls* (CallRail call log with caller numbers, stats by channel and location, CSV export).
-- **Data**: `site/data.json` is the single source of truth in git (about 1 MB, the full history since Nov 2024).
+- **Dashboard** (Ukrainian), served from `site/` on Vercel. It covers all 26 hubs in the two GBP accounts, and has six tabs:
+  - **Огляд**: KPIs against the previous period, compared only across hubs that have data in both periods. Also weekly signals (7 days vs the 4-week average), monthly activity, calls by hub, Maps share vs engagement, and the all-hubs table.
+  - **Хаб**: one hub in detail, including where views come from, search intent, terms and recent posts.
+  - **Пошуковий попит**: intent mix per hub, buying searches below Google's 15 threshold, new terms, and every term.
+  - **Публікації**: posts from the GBP API, with days since the last post, a weekly grid, buttons, duplicates, and rejected or scheduled posts.
+  - **Прогноз**: eight models with a backtest, weighted by accuracy, for the network (hubs active more than a year) and for each hub.
+  - **Дзвінки**: the live CallRail log.
+- **Design**: `site/styles.css` holds the tokens: Geist font, named text styles on the Tailwind scale, spacing tokens, flat surfaces, and Phosphor icons. Charts are hand-built SVG in `site/charts.js`, using the validated categorical palette.
+- **Search intent**: `site/intent.js`. Terms that are already labelled in the GBP tracker use `site/intent_labels.json`. New terms are classified by rules, which agree with the tracker on 88% of terms and 90% of chart groups.
+- **Data**: `site/data.json` is the single source of truth in git (about 2 MB). It holds daily metrics since Nov 2024, monthly keywords, and the current posts of every profile.
 - **Refresh**: GitHub Actions (`.github/workflows/daily-pull.yml`) runs every day at 06:15 UTC:
   1. `data_io.py import` rebuilds `gbp.db` from `data.json`.
-  2. `pull_gbp.py --days 14` re-pulls the last 14 days from the GBP API and upserts them.
+  2. `pull_gbp.py --days 14` re-pulls the last 14 days of metrics and keywords, plus every profile's posts, then upserts them.
   3. `data_io.py export` writes `data.json` back.
   4. The workflow commits the change, and Vercel redeploys automatically.
+- **Trailing zeros**: Google returns zeros for days it hasn't reported yet, usually the last 2–3 days. The dashboard ends the data on the last day with any views, so those zeros never read as a drop.
 
 ## One-time setup
 
@@ -64,7 +73,9 @@ Nothing to do. Open the Vercel URL.
   1. Put `credentials.json` next to `pull_gbp.py`.
   2. Run `python pull_gbp.py --auth`.
   3. Paste the new `token.json` into the secret.
-- **New location**: add it to `locations.yaml`, then trigger the workflow manually with `days` = 540 to backfill it.
+- **New location**:
+  1. Add it to `locations.yaml` with its name, `location_id`, `account_id` and `address`. `python pull_gbp.py --list-locations` prints the IDs.
+  2. Trigger the workflow manually with `days` = 540 and `locations` = its name, to backfill only that hub.
 - **Thresholds for the *Needs attention* tab**: edit `SIG` at the top of the signals section in `site/index.html`. The defaults are: a drop of 30% or more is red, growth of 50% or more is green, and locations with a small baseline are ignored.
 
 ## Local run (optional)

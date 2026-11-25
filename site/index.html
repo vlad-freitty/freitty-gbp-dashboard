@@ -1,1294 +1,358 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="uk">
 <head>
 <meta charset="UTF-8">
-<title>FREITTY · GBP Performance Dashboard</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-<style>
-  :root {
-    --bg: #FAFAF8;
-    --surface: #FFFFFF;
-    --surface-2: #F1EFE8;
-    --border: rgba(0,0,0,0.08);
-    --border-strong: rgba(0,0,0,0.15);
-    --text: #1F1F1D;
-    --text-muted: #5F5E5A;
-    --text-faint: #888780;
-    --accent: #D85A30;
-    --info: #185FA5;
-    --info-light: #E6F1FB;
-    --success: #0F6E56;
-    --success-light: #E1F5EE;
-    --purple: #534AB7;
-    --purple-light: #EEEDFE;
-    --danger: #B42318;
-    --danger-light: #FDECEA;
-    --warn: #9A6700;
-    --warn-light: #FFF4D6;
-    --radius: 8px;
-    --radius-lg: 12px;
-    --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, "Helvetica Neue", Arial, sans-serif;
-  }
-  @media (prefers-color-scheme: dark) {
-    :root {
-      --bg: #1A1A18;
-      --surface: #242421;
-      --surface-2: #2C2C2A;
-      --border: rgba(255,255,255,0.08);
-      --border-strong: rgba(255,255,255,0.15);
-      --text: #F1EFE8;
-      --text-muted: #B4B2A9;
-      --text-faint: #888780;
-      --info-light: rgba(24, 95, 165, 0.18);
-      --success-light: rgba(15, 110, 86, 0.18);
-      --purple-light: rgba(83, 74, 183, 0.18);
-      --danger: #F97066;
-      --danger-light: rgba(180, 35, 24, 0.22);
-      --warn: #E3B341;
-      --warn-light: rgba(154, 103, 0, 0.22);
-    }
-  }
-  * { box-sizing: border-box; }
-  body { margin: 0; padding: 20px; background: var(--bg); color: var(--text); font-family: var(--font); font-size: 13px; line-height: 1.45; }
-  .wrap { max-width: 1600px; margin: 0 auto; }
-  header { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 4px; }
-  h1 { font-size: 22px; font-weight: 500; margin: 0; letter-spacing: -0.01em; }
-  h2 { font-size: 15px; font-weight: 500; margin: 0 0 8px; }
-  .subtitle { color: var(--text-muted); font-size: 13px; margin: 0 0 20px; }
-  .accent-bar { display: inline-block; width: 28px; height: 3px; background: var(--accent); margin-right: 8px; vertical-align: middle; }
-
-  .loader { background: var(--surface); border: 0.5px solid var(--border); border-radius: var(--radius-lg); padding: 16px; margin-bottom: 16px; }
-  .loader-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
-  .loader-slot { border: 0.5px dashed var(--border-strong); border-radius: var(--radius); padding: 12px 14px; background: var(--surface-2); }
-  .loader-slot.loaded { border-style: solid; border-color: var(--success); background: var(--success-light); }
-  .slot-title { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 6px; display: flex; justify-content: space-between; }
-  .slot-status { font-size: 11px; color: var(--text-faint); }
-  .slot-status.ok { color: var(--success); }
-  .slot-name { font-size: 13px; font-weight: 500; margin-bottom: 8px; }
-  .file-label { display: inline-block; background: var(--surface); border: 0.5px solid var(--border-strong); color: var(--text); padding: 6px 12px; border-radius: var(--radius); cursor: pointer; font-size: 12px; }
-  .file-label:hover { background: var(--surface-2); }
-  input[type="file"] { display: none; }
-  button { background: var(--surface); border: 0.5px solid var(--border-strong); color: var(--text); padding: 6px 12px; border-radius: var(--radius); cursor: pointer; font: inherit; font-size: 12px; transition: background 0.12s; }
-  button:hover { background: var(--surface-2); }
-  button.primary { background: var(--accent); color: white; border-color: var(--accent); }
-  button.primary:hover { background: #B94D27; }
-  .loader-actions { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
-
-  .tabs { display: flex; gap: 4px; border-bottom: 0.5px solid var(--border); margin-bottom: 16px; }
-  .tab { padding: 9px 16px; cursor: pointer; color: var(--text-muted); border-bottom: 2px solid transparent; margin-bottom: -0.5px; font-size: 14px; font-weight: 500; }
-  .tab:hover { color: var(--text); }
-  .tab.active { color: var(--text); border-bottom-color: var(--accent); }
-  .tab-content { display: none; }
-  .tab-content.active { display: block; }
-
-  /* Sticky global filter bar */
-  .global-filters {
-    position: sticky; top: 0; z-index: 10;
-    background: var(--bg);
-    padding: 10px 0;
-    margin-bottom: 16px;
-    border-bottom: 0.5px solid var(--border);
-  }
-  .filters-inner {
-    display: flex; gap: 12px; flex-wrap: wrap; align-items: center;
-    background: var(--surface);
-    border: 0.5px solid var(--border);
-    border-radius: var(--radius-lg);
-    padding: 12px 14px;
-  }
-  .filter-group { display: flex; align-items: center; gap: 8px; }
-  .filter-group label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; font-weight: 500; }
-  select, input[type="date"], input[type="search"] {
-    background: var(--surface); color: var(--text);
-    border: 0.5px solid var(--border-strong); border-radius: var(--radius);
-    padding: 5px 10px; font: inherit; font-size: 12px;
-  }
-  select { padding-right: 26px; appearance: none; -webkit-appearance: none;
-    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path fill='%23888' d='M0 0l5 6 5-6z'/></svg>");
-    background-repeat: no-repeat; background-position: right 8px center; cursor: pointer; }
-
-  .seg { display: inline-flex; border: 0.5px solid var(--border-strong); border-radius: var(--radius); overflow: hidden; }
-  .seg button { background: transparent; border: none; padding: 5px 10px; font-size: 12px; cursor: pointer; color: var(--text-muted); border-radius: 0; }
-  .seg button.active { background: var(--info); color: white; }
-  .seg button:not(.active):hover { background: var(--surface-2); color: var(--text); }
-  .seg button + button { border-left: 0.5px solid var(--border-strong); }
-
-  .checklist { display: flex; gap: 4px; flex-wrap: wrap; max-width: 100%; }
-  .chip { display: inline-flex; align-items: center; padding: 4px 10px; background: var(--surface); border: 0.5px solid var(--border-strong); border-radius: 999px; font-size: 12px; cursor: pointer; user-select: none; color: var(--text-muted); transition: all 0.12s; }
-  .chip.active { background: var(--info); color: white; border-color: var(--info); }
-  .chip:hover { border-color: var(--text-faint); }
-
-  /* Heat-grid layout */
-  .grid-section { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
-  @media (max-width: 1100px) { .grid-section { grid-template-columns: 1fr; } }
-  .panel { background: var(--surface); border: 0.5px solid var(--border); border-radius: var(--radius-lg); padding: 14px 16px; overflow: hidden; }
-  .panel-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 8px; gap: 8px; }
-  .panel-meta { font-size: 11px; color: var(--text-faint); }
-  .panel-full { grid-column: 1 / -1; }
-
-  /* Heat table */
-  .heat-wrap { overflow: auto; max-height: 480px; border: 0.5px solid var(--border); border-radius: var(--radius); }
-  table.heat {
-    width: 100%; border-collapse: collapse;
-    font-size: 11px;
-    font-variant-numeric: tabular-nums;
-  }
-  table.heat th, table.heat td {
-    padding: 4px 6px;
-    border-right: 0.5px solid var(--border);
-    border-bottom: 0.5px solid var(--border);
-    white-space: nowrap;
-  }
-  table.heat thead th {
-    position: sticky; top: 0; z-index: 2;
-    background: var(--surface);
-    font-weight: 500;
-    color: var(--text-muted);
-    font-size: 10px;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    text-align: right;
-  }
-  table.heat thead th:first-child {
-    text-align: left;
-    z-index: 3;
-    left: 0;
-    background: var(--surface);
-  }
-  table.heat tbody th {
-    position: sticky; left: 0; z-index: 1;
-    background: var(--surface);
-    font-weight: 500;
-    color: var(--text);
-    text-align: left;
-    border-right: 0.5px solid var(--border-strong);
-  }
-  table.heat td { text-align: right; }
-  table.heat .total-row th, table.heat .total-row td {
-    font-weight: 600;
-    background: var(--surface-2);
-    border-top: 0.5px solid var(--border-strong);
-  }
-  table.heat .total-col { font-weight: 600; border-left: 0.5px solid var(--border-strong); }
-
-  /* KPI cards */
-  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 16px; }
-  .kpi { background: var(--surface); border: 0.5px solid var(--border); border-radius: var(--radius-lg); padding: 12px 14px; }
-  .kpi-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 4px; }
-  .kpi-value { font-size: 22px; font-weight: 500; letter-spacing: -0.01em; font-variant-numeric: tabular-nums; }
-  .kpi-delta { font-size: 11px; margin-top: 2px; }
-  .pos { color: var(--success); }
-  .neg { color: var(--danger); }
-  .zero { color: var(--text-faint); }
-
-  /* Keywords tab */
-  .filters { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; background: var(--surface); border: 0.5px solid var(--border); border-radius: var(--radius-lg); padding: 12px 14px; margin-bottom: 16px; }
-  .table { width: 100%; border-collapse: collapse; font-size: 13px; }
-  .table th, .table td { text-align: left; padding: 7px 10px; border-bottom: 0.5px solid var(--border); }
-  .table th { font-weight: 500; color: var(--text-muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
-  .table th.sortable { cursor: pointer; user-select: none; }
-  .table th.sortable:hover { color: var(--text); }
-  .table td.num { text-align: right; font-variant-numeric: tabular-nums; }
-  .table tbody tr:last-child td { border-bottom: 0; }
-  .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 500; }
-  .badge-brand { background: var(--purple-light); color: var(--purple); }
-  .badge-generic { background: var(--info-light); color: var(--info); }
-  .badge-other { background: var(--surface-2); color: var(--text-muted); }
-  .badge-threshold { background: var(--surface-2); color: var(--text-faint); cursor: help; border: 0.5px dashed var(--border-strong); margin-left: 6px; }
-  .chart-box { position: relative; height: 240px; width: 100%; }
-
-  .empty-state { text-align: center; padding: 60px 20px; color: var(--text-faint); background: var(--surface); border: 0.5px dashed var(--border-strong); border-radius: var(--radius-lg); }
-  .empty-state h3 { color: var(--text-muted); font-weight: 500; margin: 0 0 8px; font-size: 16px; }
-
-  @media (max-width: 640px) { body { padding: 16px; } .tab { padding: 9px 10px; font-size: 13px; } }
-  .banner { border-radius: var(--radius-lg); padding: 10px 14px; margin-bottom: 16px; font-size: 13px; }
-  .banner.warn { background: var(--warn-light); color: var(--warn); border: 0.5px solid var(--warn); }
-  .banner.err { background: var(--danger-light); color: var(--danger); border: 0.5px solid var(--danger); }
-
-  /* Signals tab */
-  .alerts { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 10px; margin-bottom: 16px; }
-  .alert { background: var(--surface); border: 0.5px solid var(--border); border-left: 3px solid var(--text-faint); border-radius: var(--radius); padding: 10px 12px; }
-  .alert.crit { border-left-color: var(--danger); }
-  .alert.down { border-left-color: var(--warn); }
-  .alert.up { border-left-color: var(--success); }
-  .alert-title { font-weight: 600; margin-bottom: 2px; }
-  .alert-body { color: var(--text-muted); font-size: 12px; }
-  .alert-group-h { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; margin: 4px 0 8px; font-weight: 500; }
-  .ok-note { background: var(--success-light); color: var(--success); border-radius: var(--radius); padding: 10px 12px; margin-bottom: 16px; }
-  table.cmp { width: 100%; border-collapse: collapse; font-size: 12px; font-variant-numeric: tabular-nums; }
-  table.cmp th, table.cmp td { padding: 6px 8px; border-bottom: 0.5px solid var(--border); white-space: nowrap; }
-  table.cmp thead th { font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); font-weight: 500; text-align: right; }
-  table.cmp thead th:first-child, table.cmp tbody th { text-align: left; }
-  table.cmp tbody th { font-weight: 500; }
-  table.cmp td { text-align: right; }
-  table.cmp .grp { border-left: 0.5px solid var(--border-strong); }
-  .delta { font-size: 11px; margin-left: 4px; }
-  .cmp-wrap { overflow-x: auto; }
-  .kpi-delta.neg, .delta.neg { color: var(--danger); }
-
-  /* Calls tab */
-  .whoami { font-size: 12px; color: var(--text-muted); margin-left: 12px; }
-  .whoami a { color: var(--text-muted); }
-  .chip .dot { width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; display: inline-block; }
-  .chip.active .dot { box-shadow: 0 0 0 1.5px rgba(255,255,255,0.8); }
-  table.cmp tr.total th, table.cmp tr.total td { font-weight: 600; background: var(--surface-2); }
-  table.cmp td.neg { color: var(--danger); }
-  .calls-log td { vertical-align: top; }
-  .calls-log .sub, #calls-repeat .sub { font-size: 11px; color: var(--text-faint); }
-  .mono { font-variant-numeric: tabular-nums; white-space: nowrap; }
-  .nowrap { white-space: nowrap; }
-  .badge-ok { background: var(--success-light); color: var(--success); }
-  .badge-bad { background: var(--danger-light); color: var(--danger); }
-  .badge-warn { background: var(--warn-light); color: var(--warn); }
-  .badge-new { background: var(--info-light); color: var(--info); font-size: 10px; padding: 1px 6px; }
-  #calls-heat td { text-align: center; min-width: 26px; }
-  #calls-more { margin-top: 10px; }
-  @media (max-width: 640px) { .global-filters { position: static; } }
-</style>
+<title>Freitty · Google Business</title>
+<meta name="description" content="Профілі Google Business усіх хабів Freitty: перегляди, дзвінки, маршрути, пошуковий попит, публікації та прогноз. Оновлюється щодня.">
+<meta name="robots" content="noindex, nofollow">
+<meta property="og:title" content="Freitty · Google Business">
+<meta property="og:description" content="Щоденна статистика профілів Google Business усіх хабів Freitty.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='16' fill='%230b0b0b'/%3E%3Ctext x='16' y='21.5' font-family='Arial' font-size='15' font-weight='700' fill='white' text-anchor='middle'%3EF%3C/text%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css">
+<link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/fill/style.css">
+<link rel="stylesheet" href="styles.css">
+<script>
+  // theme before first paint: "system" | "light" | "dark"
+  try { const t = localStorage.getItem("gbp-theme"); if (t === "light" || t === "dark") document.documentElement.dataset.theme = t; } catch (e) {}
+</script>
 </head>
 <body>
-<div class="wrap">
+<a class="skip-link body-5" href="#main">Перейти до вмісту</a>
 
-  <header>
-    <h1><span class="accent-bar"></span>FREITTY · GBP performance</h1>
-    <span><span id="status" style="font-size:13px; color: var(--text-muted)">Loading…</span><span class="whoami" id="whoami"></span></span>
+<div class="nav-shell" id="nav-shell">
+  <nav class="nav" aria-label="Розділи">
+    <a class="nav-brand title-4" href="#overview"><span class="mark">F</span>Google Business</a>
+    <div class="nav-links" id="nav-links">
+      <a class="nav-link body-5" href="#overview" data-page="overview"><i class="ph ph-squares-four" aria-hidden="true"></i>Огляд</a>
+      <a class="nav-link body-5" href="#hub" data-page="hub"><i class="ph ph-map-pin" aria-hidden="true"></i>Хаб</a>
+      <a class="nav-link body-5" href="#search" data-page="search"><i class="ph ph-magnifying-glass" aria-hidden="true"></i>Пошуковий попит</a>
+      <a class="nav-link body-5" href="#posts" data-page="posts"><i class="ph ph-megaphone" aria-hidden="true"></i>Публікації</a>
+      <a class="nav-link body-5" href="#forecast" data-page="forecast"><i class="ph ph-chart-line-up" aria-hidden="true"></i>Прогноз</a>
+      <a class="nav-link body-5" href="#calls" data-page="calls"><i class="ph ph-phone" aria-hidden="true"></i>Дзвінки</a>
+    </div>
+    <div style="display:flex;gap:2px">
+      <button class="icon-btn theme-toggle" id="theme-btn" type="button" aria-label="Тема оформлення"><i class="ph ph-circle-half" aria-hidden="true"></i></button>
+      <button class="icon-btn nav-toggle" id="nav-toggle" type="button" aria-label="Меню" aria-expanded="false" aria-controls="mobile-menu"><span class="burger" aria-hidden="true"><span></span><span></span><span></span></span></button>
+    </div>
+  </nav>
+</div>
+<div class="mobile-menu" id="mobile-menu" aria-label="Розділи"></div>
+
+<main class="wrap" id="main" tabindex="-1">
+  <header class="page-head">
+    <div>
+      <h1 class="heading-5" id="page-title">Профілі Google Business</h1>
+      <p class="lead body-6" id="page-lead">Усі хаби Freitty. Дані оновлюються щодня; Google звітує з затримкою близько двох днів.</p>
+    </div>
+    <span class="freshness caption-4" id="freshness"><span class="dot"></span><span id="freshness-text">Завантаження…</span></span>
   </header>
-  <p class="subtitle">Google Business Profile, all FREITTY locations. Refreshed automatically every day; GBP reports with a ~2-day lag.</p>
   <div id="banner"></div>
 
-  <div class="tabs">
-    <div class="tab active" data-tab="signals">Needs attention</div>
-    <div class="tab" data-tab="performance">Performance</div>
-    <div class="tab" data-tab="keywords">Keywords</div>
-    <div class="tab" data-tab="calls">Calls</div>
+  <!-- global period filter (Огляд, Хаб, Пошуковий попит, Публікації) -->
+  <div class="filterbar" id="period-bar">
+    <div class="seg" id="period-presets" role="group" aria-label="Період">
+      <button type="button" data-p="30">30 днів</button>
+      <button type="button" data-p="90">90 днів</button>
+      <button type="button" data-p="180">6 місяців</button>
+      <button type="button" data-p="365">12 місяців</button>
+      <button type="button" data-p="all">Увесь час</button>
+    </div>
+    <span class="sep" aria-hidden="true"></span>
+    <label class="field caption-5"><span>з</span><input type="date" id="period-from" aria-label="Початок періоду"></label>
+    <label class="field caption-5"><span>по</span><input type="date" id="period-to" aria-label="Кінець періоду"></label>
+    <span class="note caption-5" id="period-note"></span>
   </div>
 
-  <!-- ====================== SIGNALS ====================== -->
-  <div class="tab-content active" id="tab-signals">
-    <div id="sig-empty" class="empty-state"><h3>Loading data…</h3></div>
-    <div id="sig-content" style="display:none">
-      <div class="panel-meta" id="sig-window" style="margin-bottom:10px"></div>
-      <div class="kpis" id="sig-kpis"></div>
-      <div id="sig-alerts"></div>
-      <div class="panel" style="margin-bottom:16px">
-        <div class="panel-head"><h2>Last 7 days vs prior 4-week average</h2>
-          <div class="panel-meta">Weekly numbers. Red = down ≥ <span class="thr-drop"></span>%, green = up ≥ <span class="thr-up"></span>% (ignored when the baseline is tiny).</div></div>
-        <div class="cmp-wrap"><table class="cmp" id="sig-table"></table></div>
+  <!-- ===================== ОГЛЯД ===================== -->
+  <section class="page" id="page-overview" aria-labelledby="page-title">
+    <div class="kpis" id="ov-kpis">
+      <div class="sk sk-kpi"></div><div class="sk sk-kpi"></div><div class="sk sk-kpi"></div><div class="sk sk-kpi"></div><div class="sk sk-kpi"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <div><h2 class="title-3">Що потребує уваги</h2>
+          <p class="note caption-5" id="sig-window">Останні 7 днів проти середнього тижня за попередні 4.</p></div>
       </div>
-      <div class="panel">
-        <div class="panel-head"><h2>New search keywords</h2><div class="panel-meta" id="kw-new-meta"></div></div>
-        <table class="table" id="kw-new"></table>
+      <div id="ov-signals"><div class="sk" style="height:72px"></div></div>
+    </div>
+
+    <div class="grid span-main" style="margin-top:16px">
+      <div class="card">
+        <div class="card-head"><div><h2 class="title-3">Активність за місяцями</h2>
+          <p class="note caption-5">Усі хаби. Пунктир: темп неповного місяця, перерахований на повний місяць. Хаб, доданий пізніше, враховано з першого місяця роботи.</p></div></div>
+        <div class="legend" id="ov-monthly-legend"></div>
+        <div id="ov-monthly"><div class="sk" style="height:260px"></div></div>
+      </div>
+      <div class="card">
+        <div class="card-head"><div><h2 class="title-3">Дзвінки за хабами</h2>
+          <p class="note caption-5">Обраний період. Натисніть, щоб відкрити хаб.</p></div></div>
+        <div id="ov-calls"><div class="sk" style="height:260px"></div></div>
       </div>
     </div>
-  </div>
 
-  <!-- ====================== PERFORMANCE ====================== -->
-  <div class="tab-content" id="tab-performance">
-    <div id="perf-empty" class="empty-state"><h3>Loading data…</h3></div>
-
-    <div id="perf-content" style="display:none">
-
-      <!-- Sticky global filters -->
-      <div class="global-filters">
-        <div class="filters-inner">
-          <div class="filter-group"><label>Granularity</label>
-            <div class="seg" id="seg-granularity">
-              <button data-val="day">Day</button>
-              <button data-val="week" class="active">Week (ISO)</button>
-              <button data-val="month">Month</button>
-            </div>
-          </div>
-
-          <div class="filter-group"><label>From</label><input type="date" id="date-from"></div>
-          <div class="filter-group"><label>To</label><input type="date" id="date-to"></div>
-          <button id="date-reset">Reset dates</button>
-
-          <div class="filter-group"><label>Rows</label>
-            <div class="seg" id="seg-rows">
-              <button data-val="period" class="active">Periods</button>
-              <button data-val="location">Locations</button>
-            </div>
-          </div>
-
-          <div class="filter-group"><label>Cell</label>
-            <div class="seg" id="seg-cell">
-              <button data-val="abs" class="active">Absolute</button>
-              <button data-val="row">% of row</button>
-              <button data-val="col">% of column</button>
-            </div>
-          </div>
-        </div>
-
-        <div class="filters-inner" style="margin-top:8px">
-          <div class="filter-group" style="width:100%; flex-wrap:wrap">
-            <label>Locations</label>
-            <div class="checklist" id="loc-chips"></div>
-          </div>
-        </div>
-      </div>
-
-      <!-- KPI strip -->
-      <div class="kpis" id="kpis"></div>
-
-      <!-- 8 heat-tables -->
-      <div class="grid-section" id="heat-grid"></div>
-
-      <!-- Day-of-week heatmap (computed from daily data) -->
-      <div class="panel panel-full">
-        <div class="panel-head">
-          <h2>Day of week</h2>
-          <div class="filter-group" style="gap:12px">
-            <select id="dow-metric"></select>
-            <select id="dow-cell">
-              <option value="abs">Absolute</option>
-              <option value="row" selected>% of row (period)</option>
-            </select>
-          </div>
-        </div>
-        <div class="panel-meta" style="margin-bottom:8px">Periods (rows) × Day of week (columns). Computed from daily data — derived from the date of each observation.</div>
-        <div class="heat-wrap"><table class="heat" id="dow-heat"></table></div>
-      </div>
-
+    <div class="card">
+      <div class="card-head"><div><h2 class="title-3">Охоплення Карт і залученість</h2>
+        <p class="note caption-5" id="ov-scatter-note">Кожна точка: хаб; розмір відповідає кількості переглядів профілю.</p></div></div>
+      <div id="ov-scatter"><div class="sk" style="height:320px"></div></div>
     </div>
-  </div>
 
-  <!-- ====================== KEYWORDS ====================== -->
-  <div class="tab-content" id="tab-keywords">
-    <div id="kw-empty" class="empty-state"><h3>Loading data…</h3></div>
-    <div id="kw-content" style="display:none">
-      <div class="filters">
-        <div class="filter-group"><label>Period</label><select id="kw-period"></select></div>
-        <div class="filter-group"><label>Location</label><select id="kw-location"></select></div>
-        <div class="filter-group"><label>Class</label>
-          <select id="kw-class">
-            <option value="all">All</option><option value="brand">Brand only</option>
-            <option value="generic">Generic only</option><option value="other">Other</option>
-          </select>
-        </div>
-        <div class="filter-group" style="flex:1; min-width:200px"><label>Search</label>
-          <input type="search" id="kw-search" placeholder="Filter keywords..." style="flex:1">
-        </div>
+    <div class="card">
+      <div class="card-head">
+        <div><h2 class="title-3">Усі хаби</h2>
+          <p class="note caption-5">Усі стовпці за обраний період; зміна порівнює з попереднім періодом такої ж довжини. Натисніть рядок, щоб відкрити хаб.</p></div>
+        <div class="card-tools"><input type="search" id="ov-search" placeholder="Пошук хабу" aria-label="Пошук хабу"></div>
       </div>
-      <div class="kpis" id="kw-kpis"></div>
-      <div class="panel" style="margin-bottom:16px">
-        <div class="panel-head"><h2>Brand vs generic share</h2>
-          <div class="panel-meta">Brand = "freitty" • Generic = warehouse / cross dock / logistics / freight / etc.</div></div>
-        <div class="chart-box"><canvas id="kw-class-chart" role="img" aria-label="Brand vs generic share"></canvas></div>
+      <div class="table-wrap tall"><table class="t" id="ov-table"></table></div>
+    </div>
+  </section>
+
+  <!-- ===================== ХАБ ===================== -->
+  <section class="page" id="page-hub">
+    <div class="filterbar">
+      <label class="field caption-5"><span>Хаб</span><select id="hub-select" aria-label="Хаб"></select></label>
+      <span class="caption-5 muted" id="hub-address"></span>
+      <a class="btn" id="hub-to-fc" href="#forecast" style="margin-left:auto"><i class="ph ph-chart-line-up" aria-hidden="true"></i>Прогноз для хабу</a>
+    </div>
+    <div class="kpis" id="hub-kpis"></div>
+    <div class="grid span-main">
+      <div class="card">
+        <div class="card-head"><div><h2 class="title-3">Активність за місяцями</h2>
+          <p class="note caption-5">Пунктир: темп неповного місяця.</p></div></div>
+        <div class="legend" id="hub-monthly-legend"></div>
+        <div id="hub-monthly"></div>
       </div>
-      <div class="panel">
-        <div class="panel-head"><h2>Keywords</h2><div class="panel-meta">Click headers to sort. Dashed badge = upper bound.</div></div>
-        <table class="table" id="kw-table">
-          <thead><tr>
-            <th>#</th>
-            <th class="sortable" data-sort="keyword">Keyword <span class="sort-arrow"></span></th>
-            <th class="sortable" data-sort="class">Class <span class="sort-arrow"></span></th>
-            <th class="sortable" data-sort="location">Location <span class="sort-arrow"></span></th>
-            <th class="num sortable" data-sort="value">Impressions <span class="sort-arrow">▼</span></th>
-          </tr></thead>
-          <tbody></tbody>
-        </table>
+      <div class="card">
+        <div class="card-head"><div><h2 class="title-3">Звідки прийшли перегляди</h2>
+          <p class="note caption-5">Обраний період, за платформою Google і пристроєм.</p></div></div>
+        <div id="hub-sources"></div>
+        <div class="card-head" style="margin:24px 0 16px"><div><h2 class="title-3">Що шукали люди</h2>
+          <p class="note caption-5" id="hub-intent-note">Враховані пошуки (Google показує запити з 15 і більше), за наміром.</p></div></div>
+        <div id="hub-intent"></div>
       </div>
     </div>
-  </div>
-
-  <!-- ====================== CALLS (CallRail, live) ====================== -->
-  <div class="tab-content" id="tab-calls">
-    <div class="global-filters">
-      <div class="filters-inner">
-        <div class="filter-group"><label>Period</label>
-          <div class="seg" id="calls-preset">
-            <button data-days="7">7 days</button>
-            <button data-days="30" class="active">30 days</button>
-            <button data-days="90">90 days</button>
-            <button data-days="365">12 months</button>
-          </div>
-        </div>
-        <div class="filter-group"><label>From</label><input type="date" id="calls-from"></div>
-        <div class="filter-group"><label>To</label><input type="date" id="calls-to"></div>
-        <div class="filter-group"><label>Location</label><select id="calls-loc"><option value="all">All locations</option></select></div>
-        <button id="calls-refresh">Refresh</button>
-        <span class="panel-meta" id="calls-meta"></span>
+    <div class="card">
+      <div class="card-head"><div><h2 class="title-3">Перегляди профілю за тижнями</h2>
+        <p class="note caption-5">Карти й Пошук, мобільні та комп’ютери разом.</p></div></div>
+      <div class="legend" id="hub-weekly-legend"></div>
+      <div id="hub-weekly"></div>
+    </div>
+    <div class="grid cols-2" style="margin-top:16px">
+      <div class="card">
+        <div class="card-head"><div><h2 class="title-3">Пошукові запити</h2>
+          <p class="note caption-5">Місяці обраного періоду. «≤15» означає, що Google приховав точну кількість.</p></div></div>
+        <div class="table-wrap tall"><table class="t" id="hub-terms"></table></div>
       </div>
-      <div class="filters-inner" style="margin-top:8px">
-        <div class="filter-group" style="width:100%; flex-wrap:wrap"><label>Channels</label><div class="checklist" id="calls-ch"></div></div>
+      <div class="card">
+        <div class="card-head"><div><h2 class="title-3">Останні публікації</h2>
+          <p class="note caption-5" id="hub-posts-note"></p></div>
+          <a class="btn" id="hub-to-posts" href="#posts">Усі публікації</a></div>
+        <div class="table-wrap tall"><table class="t" id="hub-posts"></table></div>
       </div>
     </div>
+  </section>
+
+  <!-- ===================== ПОШУКОВИЙ ПОПИТ ===================== -->
+  <section class="page" id="page-search">
+    <div class="kpis" id="se-kpis"></div>
+    <div class="card">
+      <div class="card-head"><div><h2 class="title-3">Структура пошукового наміру за хабами</h2>
+        <p class="note caption-5">Частка врахованих пошуків за групою наміру; відсортовано за часткою купівельного наміру. Число праворуч: враховані пошуки хабу. Натисніть, щоб відкрити хаб.</p></div></div>
+      <div class="legend" id="se-mix-legend"></div>
+      <div id="se-mix"></div>
+    </div>
+    <div class="grid cols-2" style="margin-top:16px">
+      <div class="card">
+        <div class="card-head"><div><h2 class="title-3">Купівельні запити нижче порогу 15</h2>
+          <p class="note caption-5">Запити, які Google не рахує в підсумках, бо їх менше 15: прихований попит. Кількість різних запитів за хабом.</p></div></div>
+        <div id="se-latent"></div>
+      </div>
+      <div class="card">
+        <div class="card-head"><div><h2 class="title-3">Нові запити</h2>
+          <p class="note caption-5" id="se-new-note"></p></div></div>
+        <div class="table-wrap tall"><table class="t" id="se-new"></table></div>
+      </div>
+    </div>
+    <div class="card" style="margin-top:16px">
+      <div class="card-head">
+        <div><h2 class="title-3">Усі пошукові запити</h2>
+          <p class="note caption-5">Сума за місяці обраного періоду. Намір визначено за трекером GBP, а нові запити класифіковано правилами.</p></div>
+        <div class="card-tools">
+          <select id="se-hub" aria-label="Хаб"></select>
+          <select id="se-intent" aria-label="Намір"></select>
+          <input type="search" id="se-q" placeholder="Пошук запиту" aria-label="Пошук запиту">
+        </div>
+      </div>
+      <div class="table-wrap tall"><table class="t" id="se-table"></table></div>
+    </div>
+  </section>
+
+  <!-- ===================== ПУБЛІКАЦІЇ ===================== -->
+  <section class="page" id="page-posts">
+    <div class="kpis" id="po-kpis"></div>
+    <div class="grid cols-2">
+      <div class="card">
+        <div class="card-head"><div><h2 class="title-3">Днів з останньої публікації</h2>
+          <p class="note caption-5">Опубліковані дописи, незалежно від періоду. Найдовша пауза вгорі.</p></div></div>
+        <div id="po-gap"></div>
+      </div>
+      <div class="card">
+        <div class="card-head"><div><h2 class="title-3">Публікації за тижнями</h2>
+          <p class="note caption-5">Останні 12 тижнів, кількість дописів на профілі.</p></div></div>
+        <div class="table-wrap"><table class="heat" id="po-weeks"></table></div>
+      </div>
+    </div>
+    <div class="grid cols-2" style="margin-top:16px">
+      <div class="card">
+        <div class="card-head"><div><h2 class="title-3">Кнопки дії</h2>
+          <p class="note caption-5">Дописи обраного періоду. «Зателефонувати» веде на номер профілю, «Забронювати» та інші на сайт.</p></div></div>
+        <div id="po-cta"></div>
+        <div class="card-head" style="margin:24px 0 16px"><div><h2 class="title-3">Формат</h2></div></div>
+        <div id="po-media"></div>
+      </div>
+      <div class="card">
+        <div class="card-head"><div><h2 class="title-3">Один текст на кількох профілях</h2>
+          <p class="note caption-5">Однакові дописи обраного періоду: на скількох профілях і коли вийшли.</p></div></div>
+        <div class="table-wrap tall"><table class="t" id="po-dupes"></table></div>
+      </div>
+    </div>
+    <div class="card" style="margin-top:16px">
+      <div class="card-head">
+        <div><h2 class="title-3">Усі публікації</h2><p class="note caption-5">Дописи обраного періоду та заплановані.</p></div>
+        <div class="card-tools">
+          <select id="po-hub" aria-label="Хаб"></select>
+          <select id="po-state" aria-label="Статус"></select>
+          <input type="search" id="po-q" placeholder="Пошук у тексті" aria-label="Пошук у тексті">
+        </div>
+      </div>
+      <div class="table-wrap tall"><table class="t" id="po-table"></table></div>
+    </div>
+  </section>
+
+  <!-- ===================== ПРОГНОЗ ===================== -->
+  <section class="page" id="page-forecast">
+    <div class="filterbar">
+      <label class="field caption-5"><span>Для</span><select id="fc-scope" aria-label="Мережа або хаб"></select></label>
+      <div class="seg" id="fc-metric" role="group" aria-label="Метрика">
+        <button type="button" data-m="calls">Дзвінки</button>
+        <button type="button" data-m="dir">Маршрути</button>
+        <button type="button" data-m="web">Переходи на сайт</button>
+        <button type="button" data-m="inter">Взаємодії</button>
+        <button type="button" data-m="views">Перегляди</button>
+      </div>
+      <span class="note caption-5">Прогноз спирається на всю історію; фільтр періоду на нього не діє.</span>
+    </div>
+    <div class="kpis" id="fc-kpis"></div>
+    <div class="card">
+      <div class="card-head"><div><h2 class="title-3">Історія і прогноз</h2>
+        <p class="note caption-5" id="fc-chart-note"></p></div></div>
+      <div class="legend" id="fc-legend"></div>
+      <div id="fc-chart"></div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div><h2 class="title-3">Вісім моделей</h2>
+        <p class="note caption-5">Прогноз кожної моделі, її похибка на бектесті (модель перераховують на кінець кожного минулого місяця й перевіряють на наступному, якого вона ще не бачила) і вага в підсумковому прогнозі. Точніша модель має більшу вагу.</p></div></div>
+      <div class="table-wrap"><table class="t" id="fc-models"></table></div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div><h2 class="title-3">Тренд за хабами</h2>
+        <p class="note caption-5">Обрана метрика для кожного хабу. Натисніть рядок, щоб побудувати прогноз для нього.</p></div></div>
+      <div class="table-wrap tall"><table class="t" id="fc-hubs"></table></div>
+    </div>
+    <div class="card prose">
+      <h2 class="title-3" style="margin-bottom:8px">Як працює прогноз</h2>
+      <p class="body-6">Беремо повні місяці з щоденних даних Google. Вісім простих моделей (наївна, сезонна, середні, дрейф, лінійний тренд, експоненційне згладжування, Holt) прогнозують три наступні місяці.</p>
+      <p class="body-6">Кожну модель перевіряємо на історії: прогнозуємо кожен минулий місяць лише з даних до нього й рахуємо середню похибку. Підсумковий прогноз: зважене середнє, де вага обернено пропорційна квадрату похибки. Сіра смуга: діапазон, у який реальне значення потрапляло приблизно у 8 випадках із 10.</p>
+      <p class="body-6">Мережева лінія охоплює лише хаби, що працюють понад рік, і починається з місяця, коли всі вони вже працювали: так відкриття нових хабів не виглядає як зростання.</p>
+    </div>
+  </section>
+
+  <!-- ===================== ДЗВІНКИ (CallRail) ===================== -->
+  <section class="page" id="page-calls">
+    <div class="filterbar">
+      <div class="seg" id="calls-preset" role="group" aria-label="Період дзвінків">
+        <button type="button" data-days="7">7 днів</button>
+        <button type="button" data-days="30" class="active">30 днів</button>
+        <button type="button" data-days="90">90 днів</button>
+        <button type="button" data-days="365">12 місяців</button>
+      </div>
+      <label class="field caption-5"><span>з</span><input type="date" id="calls-from" aria-label="Початок"></label>
+      <label class="field caption-5"><span>по</span><input type="date" id="calls-to" aria-label="Кінець"></label>
+      <select id="calls-loc" aria-label="Локація"><option value="all">Усі локації</option></select>
+      <button class="btn" id="calls-refresh" type="button"><i class="ph ph-arrow-clockwise" aria-hidden="true"></i>Оновити</button>
+      <span class="note caption-5" id="calls-meta"></span>
+    </div>
+    <div class="filterbar" style="margin-top:-16px"><span class="caption-5 muted">Канали</span><div style="display:flex;gap:8px;flex-wrap:wrap" id="calls-ch"></div></div>
     <div id="calls-msg"></div>
     <div id="calls-body" style="display:none">
       <div class="kpis" id="calls-kpis"></div>
-
-      <div class="panel" style="margin-bottom:16px">
-        <div class="panel-head"><h2>Inbound calls by channel</h2>
-          <div class="seg" id="calls-gran">
-            <button data-val="day" class="active">Day</button>
-            <button data-val="week">Week</button>
-            <button data-val="month">Month</button>
-          </div>
+      <div class="card">
+        <div class="card-head"><div><h2 class="title-3">Вхідні дзвінки за каналами</h2></div>
+          <div class="seg" id="calls-gran" role="group" aria-label="Деталізація">
+            <button type="button" data-val="day" class="active">День</button>
+            <button type="button" data-val="week">Тиждень</button>
+            <button type="button" data-val="month">Місяць</button>
+          </div></div>
+        <div class="legend" id="calls-chart-legend"></div>
+        <div id="calls-chart"></div>
+      </div>
+      <div style="margin-top:16px">
+        <div class="card">
+          <div class="card-head"><div><h2 class="title-3">За каналом</h2><p class="note caption-5">«Не додзвонились»: пропущений, і пізніше в цьому періоді не було відповіді чи зворотного дзвінка з того самого номера.</p></div></div>
+          <div class="table-wrap"><table class="t" id="calls-by-ch"></table></div>
         </div>
-        <div class="chart-box" style="height:260px"><canvas id="calls-chart" role="img" aria-label="Inbound calls per period, stacked by channel"></canvas></div>
-      </div>
-
-      <div class="panel" style="margin-bottom:16px">
-        <div class="panel-head"><h2>By channel</h2><div class="panel-meta">Not reached = missed, and no answered call or callback from the same number later in the period.</div></div>
-        <div class="cmp-wrap"><table class="cmp" id="calls-by-ch"></table></div>
-      </div>
-      <div class="panel" style="margin-bottom:16px">
-        <div class="panel-head"><h2>By location</h2></div>
-        <div class="cmp-wrap"><table class="cmp" id="calls-by-loc"></table></div>
-      </div>
-
-      <div class="grid-section">
-        <div class="panel">
-          <div class="panel-head"><h2>When people call</h2>
-            <select id="calls-heat-metric"><option value="all">All calls</option><option value="missed">Missed calls</option></select>
-          </div>
-          <div class="panel-meta" style="margin-bottom:8px">Weekday × hour, in each location's own time zone.</div>
-          <div class="heat-wrap"><table class="heat" id="calls-heat"></table></div>
-        </div>
-        <div class="panel">
-          <div class="panel-head"><h2>Repeat callers</h2><div class="panel-meta" id="calls-repeat-meta"></div></div>
-          <div class="cmp-wrap" style="max-height:330px; overflow:auto"><table class="table" id="calls-repeat"></table></div>
+        <div class="card">
+          <div class="card-head"><div><h2 class="title-3">За локацією</h2></div></div>
+          <div class="table-wrap tall"><table class="t" id="calls-by-loc"></table></div>
         </div>
       </div>
-
-      <div class="panel" style="margin-bottom:16px">
-        <div class="panel-head"><h2>Call log</h2>
-          <div class="filter-group" style="gap:8px; flex-wrap:wrap">
-            <select id="calls-log-filter">
-              <option value="all">All inbound</option>
-              <option value="answered">Answered</option>
-              <option value="missed">Missed</option>
-              <option value="notreached">Missed, not reached</option>
-              <option value="first">First-time callers</option>
-              <option value="long">Talked 1 min+</option>
-              <option value="outbound">Outbound (callbacks)</option>
+      <div class="grid cols-2" style="margin-top:16px">
+        <div class="card">
+          <div class="card-head"><div><h2 class="title-3">Коли телефонують</h2><p class="note caption-5">День тижня × година, у часовому поясі кожної локації.</p></div>
+            <select id="calls-heat-metric" aria-label="Які дзвінки"><option value="all">Усі дзвінки</option><option value="missed">Пропущені</option></select></div>
+          <div class="table-wrap"><table class="heat" id="calls-heat"></table></div>
+        </div>
+        <div class="card">
+          <div class="card-head"><div><h2 class="title-3">Повторні дзвінки</h2><p class="note caption-5" id="calls-repeat-meta"></p></div></div>
+          <div class="table-wrap tall"><table class="t" id="calls-repeat"></table></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-head"><div><h2 class="title-3">Журнал дзвінків</h2><p class="note caption-5" id="calls-log-meta"></p></div>
+          <div class="card-tools">
+            <select id="calls-log-filter" aria-label="Фільтр журналу">
+              <option value="all">Усі вхідні</option>
+              <option value="answered">Відповіли</option>
+              <option value="missed">Пропущені</option>
+              <option value="notreached">Пропущені, не додзвонились</option>
+              <option value="first">Нові абоненти</option>
+              <option value="long">Розмова від 1 хв</option>
+              <option value="outbound">Вихідні (передзвони)</option>
             </select>
-            <input type="search" id="calls-search" placeholder="Number, name, city, campaign…">
-            <button class="primary" id="calls-export">Export CSV</button>
-          </div>
-        </div>
-        <div class="panel-meta" id="calls-log-meta" style="margin-bottom:6px"></div>
-        <div class="cmp-wrap"><table class="table calls-log" id="calls-log"></table></div>
-        <button id="calls-more">Show more</button>
+            <input type="search" id="calls-search" placeholder="Номер, ім’я, місто, кампанія" aria-label="Пошук у журналі">
+            <button class="btn primary" id="calls-export" type="button"><i class="ph ph-download-simple" aria-hidden="true"></i>Експорт CSV</button>
+          </div></div>
+        <div class="table-wrap tall"><table class="t calls-log" id="calls-log"></table></div>
+        <button class="btn" id="calls-more" type="button" style="margin-top:12px">Показати ще</button>
       </div>
-
-      <div class="panel">
-        <div class="panel-head"><h2>Sources in CallRail</h2><div class="panel-meta">How each CallRail tracking number is counted. If a row lands in the wrong channel, the rules are in lib/callrail.js.</div></div>
-        <div class="cmp-wrap"><table class="cmp" id="calls-sources"></table></div>
+      <div class="card">
+        <div class="card-head"><div><h2 class="title-3">Джерела в CallRail</h2><p class="note caption-5">Як кожен номер відстеження зараховано до каналу.</p></div></div>
+        <div class="table-wrap"><table class="t" id="calls-sources"></table></div>
       </div>
     </div>
-  </div>
-
-</div>
-
-<script>
-// ============================================================
-// CONSTANTS
-// ============================================================
-const IMPRESSION_METRICS = ["BUSINESS_IMPRESSIONS_DESKTOP_MAPS","BUSINESS_IMPRESSIONS_DESKTOP_SEARCH","BUSINESS_IMPRESSIONS_MOBILE_MAPS","BUSINESS_IMPRESSIONS_MOBILE_SEARCH"];
-const ACTION_METRICS = ["CALL_CLICKS","WEBSITE_CLICKS","BUSINESS_DIRECTION_REQUESTS"];
-
-// Metrics shown as individual heat-tables in the grid
-const HEAT_METRICS = [
-  { id: "imp_desk_maps",    label: "Impressions Desktop Maps",    metric: "BUSINESS_IMPRESSIONS_DESKTOP_MAPS",   color: "#185FA5" },
-  { id: "imp_desk_search",  label: "Impressions Desktop Search",  metric: "BUSINESS_IMPRESSIONS_DESKTOP_SEARCH", color: "#185FA5" },
-  { id: "imp_mob_maps",     label: "Impressions Mobile Maps",     metric: "BUSINESS_IMPRESSIONS_MOBILE_MAPS",    color: "#1D9E75" },
-  { id: "imp_mob_search",   label: "Impressions Mobile Search",   metric: "BUSINESS_IMPRESSIONS_MOBILE_SEARCH",  color: "#1D9E75" },
-  { id: "imp_total",        label: "Impressions Total",           metric: IMPRESSION_METRICS,                    color: "#534AB7" },
-  { id: "call_clicks",      label: "Call Clicks",                 metric: "CALL_CLICKS",                         color: "#D85A30" },
-  { id: "direction",        label: "Direction Requests",          metric: "BUSINESS_DIRECTION_REQUESTS",         color: "#BA7517" },
-  { id: "website_clicks",   label: "Website Clicks",              metric: "WEBSITE_CLICKS",                      color: "#D4537E" }
-];
-
-const BRAND_KEYWORDS = ["freitty"];
-const GENERIC_TERMS = ["warehouse","cross dock","crossdock","transload","transloading","logistics","trucking","freight","shipping","carrier","broker","storage","fulfillment","distribution","drayage","lumper","pnd","pickup and delivery","dispatch","load board"];
-function classifyKeyword(kw) {
-  const k = kw.toLowerCase();
-  if (BRAND_KEYWORDS.some(b => k.includes(b))) return "brand";
-  if (GENERIC_TERMS.some(g => k.includes(g))) return "generic";
-  return "other";
-}
-
-const DOW_ORDER = ["MONDAY","TUESDAY","WEDNESDAY","THURSDAY","FRIDAY","SATURDAY","SUNDAY"];
-const DOW_SHORT = { MONDAY:"Mon",TUESDAY:"Tue",WEDNESDAY:"Wed",THURSDAY:"Thu",FRIDAY:"Fri",SATURDAY:"Sat",SUNDAY:"Sun" };
-
-// ============================================================
-// STATE
-// ============================================================
-let DAILY = [];      // [{date, location, metric, value}]
-let KEYWORDS = [];
-let LOC_ACTIVE = new Set();
-let CHARTS = {};
-let KW_SORT = { col: "value", asc: false };
-
-let UI = {
-  granularity: "week",  // day | week | month
-  dateFrom: null,
-  dateTo: null,
-  rows: "period",       // period | location
-  cell: "abs"           // abs | row | col
-};
-
-// ============================================================
-// ISO WEEK
-// ============================================================
-function isoWeek(date) {
-  // Returns [year, week]. Mon-Sun, week 1 contains Jan 4.
-  const d = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
-  const day = d.getUTCDay() || 7;
-  d.setUTCDate(d.getUTCDate() + 4 - day);
-  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
-  const weekNum = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
-  return [d.getUTCFullYear(), weekNum];
-}
-function periodKey(date, gran) {
-  const y = date.getUTCFullYear(), m = date.getUTCMonth() + 1, d = date.getUTCDate();
-  if (gran === "day")   return `${y}-${String(m).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
-  if (gran === "month") return `${y}-${String(m).padStart(2,"0")}`;
-  const [iy, iw] = isoWeek(date);
-  return `${iy}-W${String(iw).padStart(2,"0")}`;
-}
-function periodLabel(key, gran) {
-  // Compact label for column/row header
-  if (gran === "day") {
-    const [y, m, d] = key.split("-");
-    return `${d}.${m}`;
-  }
-  if (gran === "month") return key; // YYYY-MM
-  // week — show as W## or M.DD-DD
-  return key.replace(/^\d{4}-/, ""); // W##
-}
-
-// ============================================================
-// DATA LOADING (site/data.json, written daily by GitHub Actions)
-// ============================================================
-let META = null;   // {generated_at, last_pull, start, end}
-function esc(s) { return String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
-function isoDay(d) { return d.toISOString().slice(0,10); }
-function addDays(d, n) { const x = new Date(d); x.setUTCDate(x.getUTCDate() + n); return x; }
-
-async function loadData() {
-  const res = await fetch("data.json", { cache: "no-store" });
-  if (res.status === 401) { location.reload(); throw new Error("Signed out"); }
-  if (!res.ok) throw new Error("data.json: HTTP " + res.status);
-  const j = await res.json();
-  META = { generated_at: j.generated_at, last_pull: j.last_pull, start: new Date(j.start + "T00:00:00Z"), end: new Date(j.end + "T00:00:00Z") };
-  const names = Object.fromEntries(j.locations.map(l => [l.id, l.name]));
-  const out = [];
-  const dates = [];
-  for (const [locId, perMetric] of Object.entries(j.daily)) {
-    for (const [metric, arr] of Object.entries(perMetric)) {
-      for (let i = 0; i < arr.length; i++) {
-        if (arr[i] === null) continue;
-        if (!dates[i]) dates[i] = addDays(META.start, i);
-        out.push({ date: dates[i], location: names[locId], metric, value: arr[i] });
-      }
-    }
-  }
-  DAILY = out;
-  KEYWORDS = j.keywords.rows.map(([y, m, li, kw, v, thr]) =>
-    ({ year: y, month: m, location: j.locations[li].name, keyword: kw, value: v, isThreshold: !!thr, class: classifyKeyword(kw) }));
-}
-
-// ============================================================
-// AGGREGATION
-// ============================================================
-function getFilteredDaily() {
-  let rows = DAILY.filter(r => LOC_ACTIVE.has(r.location));
-  if (UI.dateFrom) rows = rows.filter(r => r.date >= UI.dateFrom);
-  if (UI.dateTo)   rows = rows.filter(r => r.date <= UI.dateTo);
-  return rows;
-}
-
-/**
- * Build a (period × location) matrix for one metric (or list of metrics, summed).
- * Returns { periods: [keys], locations: [names], matrix: {periodKey: {loc: value}}, rowTotals, colTotals, grandTotal }
- */
-function buildMatrix(rows, metric, gran) {
-  const set = Array.isArray(metric) ? new Set(metric) : new Set([metric]);
-  const matrix = {};
-  const periods = new Set();
-  const locations = new Set();
-  let grand = 0;
-  for (const r of rows) {
-    if (!set.has(r.metric)) continue;
-    const pk = periodKey(r.date, gran);
-    periods.add(pk); locations.add(r.location);
-    if (!matrix[pk]) matrix[pk] = {};
-    matrix[pk][r.location] = (matrix[pk][r.location] || 0) + r.value;
-    grand += r.value;
-  }
-  const periodList = Array.from(periods).sort();
-  const locList = Array.from(locations).sort();
-  const rowTotals = {}; const colTotals = {};
-  for (const p of periodList) {
-    rowTotals[p] = 0;
-    for (const l of locList) {
-      const v = matrix[p]?.[l] || 0;
-      rowTotals[p] += v;
-      colTotals[l] = (colTotals[l] || 0) + v;
-    }
-  }
-  return { periods: periodList, locations: locList, matrix, rowTotals, colTotals, grandTotal: grand };
-}
-
-function buildDOWMatrix(rows, metric, gran) {
-  // Periods × DayOfWeek matrix
-  const set = Array.isArray(metric) ? new Set(metric) : new Set([metric]);
-  const matrix = {};
-  const periods = new Set();
-  let grand = 0;
-  for (const r of rows) {
-    if (!set.has(r.metric)) continue;
-    const pk = periodKey(r.date, gran);
-    const dowIdx = (r.date.getUTCDay() + 6) % 7;
-    const dow = DOW_ORDER[dowIdx];
-    periods.add(pk);
-    if (!matrix[pk]) matrix[pk] = {};
-    matrix[pk][dow] = (matrix[pk][dow] || 0) + r.value;
-    grand += r.value;
-  }
-  const periodList = Array.from(periods).sort();
-  const rowTotals = {}; const colTotals = {};
-  for (const p of periodList) {
-    rowTotals[p] = 0;
-    for (const d of DOW_ORDER) {
-      const v = matrix[p]?.[d] || 0;
-      rowTotals[p] += v;
-      colTotals[d] = (colTotals[d] || 0) + v;
-    }
-  }
-  return { periods: periodList, dows: DOW_ORDER, matrix, rowTotals, colTotals, grandTotal: grand };
-}
-
-// ============================================================
-// HEAT RENDER
-// ============================================================
-function fmtNum(n) { if (n==null||Number.isNaN(n)) return "—"; return Math.round(n).toLocaleString("en-US"); }
-function fmtPct(n) { if (n==null||!Number.isFinite(n)) return "—"; return n.toFixed(1) + "%"; }
-
-function heatColor(intensity, baseHex) {
-  // Blend white -> baseHex by intensity (0..1)
-  intensity = Math.max(0, Math.min(1, intensity));
-  const isDark = matchMedia('(prefers-color-scheme: dark)').matches;
-  const bg = isDark ? [36, 36, 33] : [255, 255, 255];
-  const hex = baseHex.replace("#", "");
-  const r = parseInt(hex.slice(0,2), 16);
-  const g = parseInt(hex.slice(2,4), 16);
-  const b = parseInt(hex.slice(4,6), 16);
-  const rr = Math.round(bg[0] + (r - bg[0]) * intensity);
-  const gg = Math.round(bg[1] + (g - bg[1]) * intensity);
-  const bb = Math.round(bg[2] + (b - bg[2]) * intensity);
-  // Text color: white when dark fill, default otherwise
-  const tc = intensity > 0.55 ? "white" : "var(--text)";
-  return `background:rgb(${rr},${gg},${bb}); color:${tc}`;
-}
-
-/**
- * Render a heat-table.
- * Inputs:
- *   container: DOM element to put <table> in
- *   matrixObj: result of buildMatrix
- *   color: hex base color for heatmap intensity
- *   rowsAxis: 'period' | 'location' — which dimension goes in rows
- *   cellMode: 'abs' | 'row' | 'col'
- */
-function renderHeat(container, matrixObj, color, rowsAxis, cellMode) {
-  const { periods, locations, matrix, rowTotals, colTotals, grandTotal } = matrixObj;
-
-  // Decide which axis is rows, which is columns
-  const rowsList = (rowsAxis === "period") ? periods : locations;
-  const colsList = (rowsAxis === "period") ? locations : periods;
-
-  // Helper: get value(rowKey, colKey) raw and totals
-  function val(rowKey, colKey) {
-    if (rowsAxis === "period") return matrix[rowKey]?.[colKey] || 0;
-    return matrix[colKey]?.[rowKey] || 0;
-  }
-  function rowTotal(rowKey) {
-    if (rowsAxis === "period") return rowTotals[rowKey] || 0;
-    return colTotals[rowKey] || 0;
-  }
-  function colTotal(colKey) {
-    if (rowsAxis === "period") return colTotals[colKey] || 0;
-    return rowTotals[colKey] || 0;
-  }
-
-  // Header labels
-  function rowLabel(k) {
-    if (rowsAxis === "period") return periodLabel(k, UI.granularity);
-    return k;
-  }
-  function colHeader(k) {
-    if (rowsAxis === "period") return k;
-    return periodLabel(k, UI.granularity);
-  }
-  const firstColHeader = (rowsAxis === "period") ? "Period" : "Location";
-
-  // Compute display value + intensity for each cell.
-  // Intensity is always based on absolute value (otherwise sparse months look identical).
-  // Max for intensity scaling:
-  //   - cellMode 'abs'  -> global max
-  //   - cellMode 'row'  -> per-row max
-  //   - cellMode 'col'  -> per-col max
-  function displayValue(rowKey, colKey) {
-    const v = val(rowKey, colKey);
-    if (cellMode === "abs") return fmtNum(v);
-    if (cellMode === "row") {
-      const t = rowTotal(rowKey);
-      return t > 0 ? fmtPct(v / t * 100) : "—";
-    }
-    // col
-    const t = colTotal(colKey);
-    return t > 0 ? fmtPct(v / t * 100) : "—";
-  }
-  function intensityValue(rowKey, colKey) {
-    const v = val(rowKey, colKey);
-    if (cellMode === "row") {
-      const t = rowTotal(rowKey);
-      return t > 0 ? v / t : 0;
-    }
-    if (cellMode === "col") {
-      const t = colTotal(colKey);
-      return t > 0 ? v / t : 0;
-    }
-    // abs: relative to global max for this matrix
-    const allVals = [];
-    for (const r of rowsList) for (const c of colsList) allVals.push(val(r, c));
-    const mx = Math.max(1, ...allVals);
-    return v / mx;
-  }
-
-  // Cache intensity calc for 'abs' mode to avoid recomputing in loop
-  let globalMax = 0;
-  if (cellMode === "abs") {
-    for (const r of rowsList) for (const c of colsList) globalMax = Math.max(globalMax, val(r, c));
-    if (globalMax === 0) globalMax = 1;
-  }
-
-  let html = "<thead><tr>";
-  html += `<th>${firstColHeader}</th>`;
-  for (const c of colsList) html += `<th>${colHeader(c)}</th>`;
-  html += `<th class="total-col">Total</th>`;
-  html += "</tr></thead><tbody>";
-
-  for (const r of rowsList) {
-    html += "<tr>";
-    html += `<th>${rowLabel(r)}</th>`;
-    for (const c of colsList) {
-      const raw = val(r, c);
-      let intensity;
-      if (cellMode === "abs") intensity = raw / globalMax;
-      else if (cellMode === "row") { const t = rowTotal(r); intensity = t > 0 ? raw / t : 0; }
-      else { const t = colTotal(c); intensity = t > 0 ? raw / t : 0; }
-      const style = raw === 0 ? "color:var(--text-faint)" : heatColor(intensity, color);
-      html += `<td style="${style}">${displayValue(r, c)}</td>`;
-    }
-    html += `<td class="total-col">${cellMode === "abs" ? fmtNum(rowTotal(r)) : "—"}</td>`;
-    html += "</tr>";
-  }
-
-  // Totals row
-  html += `<tr class="total-row"><th>Total</th>`;
-  for (const c of colsList) {
-    html += `<td>${cellMode === "abs" ? fmtNum(colTotal(c)) : "—"}</td>`;
-  }
-  html += `<td>${cellMode === "abs" ? fmtNum(grandTotal) : "—"}</td>`;
-  html += "</tr></tbody>";
-
-  container.innerHTML = html;
-}
-
-function renderDOWHeat(rows) {
-  const metric = document.getElementById("dow-metric").value;
-  const cellMode = document.getElementById("dow-cell").value;
-  let metricSpec;
-  if (metric === "TOTAL_IMPRESSIONS") metricSpec = IMPRESSION_METRICS;
-  else if (metric === "TOTAL_ACTIONS") metricSpec = ACTION_METRICS;
-  else metricSpec = metric;
-
-  const mx = buildDOWMatrix(rows, metricSpec, UI.granularity);
-  const { periods, dows, matrix, rowTotals, colTotals, grandTotal } = mx;
-
-  const tbl = document.getElementById("dow-heat");
-  let html = "<thead><tr><th>Period</th>";
-  for (const d of dows) html += `<th>${DOW_SHORT[d]}</th>`;
-  html += `<th class="total-col">Total</th></tr></thead><tbody>`;
-
-  let globalMax = 0;
-  for (const p of periods) for (const d of dows) globalMax = Math.max(globalMax, matrix[p]?.[d] || 0);
-  if (globalMax === 0) globalMax = 1;
-
-  for (const p of periods) {
-    html += `<tr><th>${periodLabel(p, UI.granularity)}</th>`;
-    for (const d of dows) {
-      const v = matrix[p]?.[d] || 0;
-      let intensity, displayVal;
-      if (cellMode === "abs") {
-        intensity = v / globalMax;
-        displayVal = fmtNum(v);
-      } else {
-        const t = rowTotals[p] || 0;
-        intensity = t > 0 ? v / t : 0;
-        displayVal = t > 0 ? fmtPct(v / t * 100) : "—";
-      }
-      const style = v === 0 ? "color:var(--text-faint)" : heatColor(intensity, "#185FA5");
-      html += `<td style="${style}">${displayVal}</td>`;
-    }
-    html += `<td class="total-col">${cellMode === "abs" ? fmtNum(rowTotals[p]) : "—"}</td></tr>`;
-  }
-  html += `<tr class="total-row"><th>Total</th>`;
-  for (const d of dows) html += `<td>${cellMode === "abs" ? fmtNum(colTotals[d]) : "—"}</td>`;
-  html += `<td>${cellMode === "abs" ? fmtNum(grandTotal) : "—"}</td></tr></tbody>`;
-
-  tbl.innerHTML = html;
-}
-
-// ============================================================
-// PERFORMANCE RENDER (orchestrator)
-// ============================================================
-function renderPerformance() {
-  const empty = document.getElementById("perf-empty"), content = document.getElementById("perf-content");
-  if (!DAILY.length) { empty.style.display = "block"; content.style.display = "none"; return; }
-  empty.style.display = "none"; content.style.display = "block";
-
-  const rows = getFilteredDaily();
-
-  // KPIs
-  renderKPIs(rows);
-
-  // Heat grid
-  const grid = document.getElementById("heat-grid");
-  grid.innerHTML = HEAT_METRICS.map(h =>
-    `<div class="panel">
-      <div class="panel-head">
-        <h2>${h.label}</h2>
-        <div class="panel-meta" id="meta-${h.id}"></div>
-      </div>
-      <div class="heat-wrap"><table class="heat" id="heat-${h.id}"></table></div>
-    </div>`
-  ).join("");
-
-  for (const h of HEAT_METRICS) {
-    const mx = buildMatrix(rows, h.metric, UI.granularity);
-    renderHeat(document.getElementById("heat-" + h.id), mx, h.color, UI.rows, UI.cell);
-    document.getElementById("meta-" + h.id).textContent = `${mx.periods.length} ${UI.granularity}s × ${mx.locations.length} loc · grand total ${fmtNum(mx.grandTotal)}`;
-  }
-
-  renderDOWHeat(rows);
-}
-
-function renderKPIs(rows) {
-  const sum = (mOrSet) => {
-    const set = Array.isArray(mOrSet) ? new Set(mOrSet) : new Set([mOrSet]);
-    let s = 0; for (const r of rows) if (set.has(r.metric)) s += r.value; return s;
-  };
-  const tImp = sum(IMPRESSION_METRICS), tAct = sum(ACTION_METRICS);
-  const ctr = tImp > 0 ? (tAct/tImp*100) : 0;
-  const k = [
-    { label:"Impressions",     val:fmtNum(tImp) },
-    { label:"Actions",         val:fmtNum(tAct) },
-    { label:"Action rate",     val:ctr.toFixed(2)+"%" },
-    { label:"Calls",           val:fmtNum(sum("CALL_CLICKS")) },
-    { label:"Website",         val:fmtNum(sum("WEBSITE_CLICKS")) },
-    { label:"Directions",      val:fmtNum(sum("BUSINESS_DIRECTION_REQUESTS")) },
-    { label:"Locations active",val:LOC_ACTIVE.size },
-    { label:"Days in range",   val: (() => {
-      if (!rows.length) return 0;
-      const ds = new Set(rows.map(r => r.date.toISOString().slice(0,10)));
-      return ds.size;
-    })() }
-  ];
-  document.getElementById("kpis").innerHTML = k.map(x =>
-    `<div class="kpi"><div class="kpi-label">${x.label}</div><div class="kpi-value">${x.val}</div></div>`).join("");
-}
-
-function renderLocChips() {
-  const locs = Array.from(new Set(DAILY.map(r => r.location))).sort();
-  const el = document.getElementById("loc-chips");
-  el.innerHTML = locs.map(l => `<span class="chip ${LOC_ACTIVE.has(l)?"active":""}" data-loc="${esc(l)}">${esc(l)}</span>`).join("")
-    + `<span class="chip" id="chip-all">All</span><span class="chip" id="chip-none">None</span>`;
-  el.querySelectorAll(".chip[data-loc]").forEach(c => {
-    c.addEventListener("click", () => {
-      const l = c.dataset.loc;
-      if (LOC_ACTIVE.has(l)) LOC_ACTIVE.delete(l); else LOC_ACTIVE.add(l);
-      c.classList.toggle("active"); renderPerformance();
-    });
-  });
-  document.getElementById("chip-all").addEventListener("click", () => { LOC_ACTIVE = new Set(locs); renderLocChips(); renderPerformance(); });
-  document.getElementById("chip-none").addEventListener("click", () => { LOC_ACTIVE = new Set(); renderLocChips(); renderPerformance(); });
-}
-
-function setupDOWMetricSelect() {
-  const sel = document.getElementById("dow-metric");
-  const opts = [
-    { v: "TOTAL_IMPRESSIONS", l: "Total impressions" },
-    { v: "TOTAL_ACTIONS", l: "Total actions" },
-    { v: "CALL_CLICKS", l: "Call clicks" },
-    { v: "WEBSITE_CLICKS", l: "Website clicks" },
-    { v: "BUSINESS_DIRECTION_REQUESTS", l: "Direction requests" },
-    { v: "BUSINESS_IMPRESSIONS_DESKTOP_MAPS", l: "Impressions Desktop Maps" },
-    { v: "BUSINESS_IMPRESSIONS_DESKTOP_SEARCH", l: "Impressions Desktop Search" },
-    { v: "BUSINESS_IMPRESSIONS_MOBILE_MAPS", l: "Impressions Mobile Maps" },
-    { v: "BUSINESS_IMPRESSIONS_MOBILE_SEARCH", l: "Impressions Mobile Search" }
-  ];
-  sel.innerHTML = opts.map(o => `<option value="${o.v}">${o.l}</option>`).join("");
-}
-
-function initDateRange() {
-  if (!DAILY.length) return;
-  const min = META.start, max = META.end;
-  document.getElementById("date-from").min = min.toISOString().slice(0,10);
-  document.getElementById("date-from").max = max.toISOString().slice(0,10);
-  document.getElementById("date-to").min = min.toISOString().slice(0,10);
-  document.getElementById("date-to").max = max.toISOString().slice(0,10);
-  // default view: last 26 weeks (full history stays one click away via From)
-  const defFrom = addDays(max, -26 * 7 + 1);
-  if (!UI.dateFrom) document.getElementById("date-from").value = isoDay(defFrom > min ? defFrom : min);
-  if (!UI.dateTo)   document.getElementById("date-to").value   = max.toISOString().slice(0,10);
-  UI.dateFrom = new Date(document.getElementById("date-from").value + "T00:00:00Z");
-  UI.dateTo   = new Date(document.getElementById("date-to").value   + "T23:59:59Z");
-}
-
-// ============================================================
-// KEYWORDS RENDER (unchanged from previous version)
-// ============================================================
-function renderKeywords() {
-  const empty = document.getElementById("kw-empty"), content = document.getElementById("kw-content");
-  if (!KEYWORDS.length) { empty.style.display = "block"; content.style.display = "none"; return; }
-  empty.style.display = "none"; content.style.display = "block";
-
-  const periodSel = document.getElementById("kw-period"), locSel = document.getElementById("kw-location");
-  if (!periodSel.dataset.populated) {
-    const periods = Array.from(new Set(KEYWORDS.map(r => `${r.year}-${String(r.month).padStart(2,'0')}`))).sort();
-    periodSel.innerHTML = `<option value="all">All periods</option>` + periods.map(p => `<option value="${p}">${p}</option>`).join("");
-    periodSel.value = periods[periods.length - 1] || "all"; periodSel.dataset.populated = "1";
-  }
-  if (!locSel.dataset.populated) {
-    const locs = Array.from(new Set(KEYWORDS.map(r => r.location))).sort();
-    locSel.innerHTML = `<option value="all">All locations</option>` + locs.map(l => `<option value="${l}">${l}</option>`).join("");
-    locSel.value = "all"; locSel.dataset.populated = "1";
-  }
-
-  const period = periodSel.value, loc = locSel.value;
-  const cls = document.getElementById("kw-class").value;
-  const q = (document.getElementById("kw-search").value || "").trim().toLowerCase();
-  let filt = KEYWORDS.slice();
-  if (period !== "all") { const [y,m] = period.split("-").map(Number); filt = filt.filter(r => r.year===y && r.month===m); }
-  if (loc !== "all") filt = filt.filter(r => r.location === loc);
-  if (cls !== "all") filt = filt.filter(r => r.class === cls);
-  if (q) filt = filt.filter(r => r.keyword.toLowerCase().includes(q));
-
-  const totalImpr = filt.reduce((s,r) => s+r.value,0);
-  const brandImpr = filt.filter(r => r.class==="brand").reduce((s,r) => s+r.value,0);
-  const genericImpr = filt.filter(r => r.class==="generic").reduce((s,r) => s+r.value,0);
-  document.getElementById("kw-kpis").innerHTML = [
-    { label:"Keyword rows", val:fmtNum(filt.length) },
-    { label:"Unique keywords", val:fmtNum(new Set(filt.map(r => r.keyword)).size) },
-    { label:"Total impressions", val:fmtNum(totalImpr) },
-    { label:"Brand impressions", val:fmtNum(brandImpr) },
-    { label:"Generic impressions", val:fmtNum(genericImpr) },
-    { label:"Brand share", val:(totalImpr>0 ? (brandImpr/totalImpr*100) : 0).toFixed(1)+"%" }
-  ].map(k => `<div class="kpi"><div class="kpi-label">${k.label}</div><div class="kpi-value">${k.val}</div></div>`).join("");
-
-  const otherImpr = totalImpr - brandImpr - genericImpr;
-  if (CHARTS.kwClass) CHARTS.kwClass.destroy();
-  CHARTS.kwClass = new Chart(document.getElementById("kw-class-chart"), {
-    type:"bar",
-    data: { labels:["Brand","Generic","Other"], datasets:[{ data:[brandImpr,genericImpr,otherImpr], backgroundColor:["#534AB7","#185FA5","#888780"], borderRadius:4 }] },
-    options: { indexAxis:"y", responsive:true, maintainAspectRatio:false,
-      plugins: { legend: { display:false }, tooltip: { callbacks: {
-        label: (ctx) => fmtNum(ctx.parsed.x) + " (" + (totalImpr>0 ? (ctx.parsed.x/totalImpr*100).toFixed(1) : 0) + "%)" } } },
-      scales: { x: { beginAtZero:true, ticks: { font: { size:11 } } }, y: { ticks: { font: { size:12 } }, grid: { display:false } } } }
-  });
-
-  const agg = new Map();
-  for (const r of filt) {
-    const key = r.keyword+"|"+r.location;
-    const ex = agg.get(key);
-    if (ex) { ex.value += r.value; ex.hasThreshold = ex.hasThreshold || r.isThreshold; }
-    else agg.set(key, { keyword:r.keyword, location:r.location, value:r.value, class:r.class, hasThreshold:r.isThreshold });
-  }
-  let tr = Array.from(agg.values());
-  const dir = KW_SORT.asc ? 1 : -1;
-  tr.sort((a,b) => {
-    const va = a[KW_SORT.col], vb = b[KW_SORT.col];
-    if (typeof va === "number") return (va-vb)*dir;
-    return String(va).localeCompare(String(vb))*dir;
-  });
-  const visible = tr.slice(0,500);
-  const html = visible.map((r,i) => {
-    const cls = r.class==="brand" ? "badge-brand" : r.class==="generic" ? "badge-generic" : "badge-other";
-    const tb = r.hasThreshold ? `<span class="badge badge-threshold" title="Google withheld exact count. Value shown is the upper bound.">≤ upper bound</span>` : "";
-    return `<tr><td>${i+1}</td><td>${esc(r.keyword)}${tb}</td><td><span class="badge ${cls}">${r.class}</span></td><td>${esc(r.location)}</td><td class="num">${fmtNum(r.value)}</td></tr>`;
-  }).join("");
-  document.querySelector("#kw-table tbody").innerHTML = html + (tr.length>500 ? `<tr><td colspan="5" style="text-align:center; color:var(--text-faint); font-style:italic">Showing top 500 of ${tr.length} — refine filter to see more</td></tr>` : "");
-  document.querySelectorAll("#kw-table th.sortable").forEach(th => {
-    const a = th.querySelector(".sort-arrow");
-    a.textContent = (th.dataset.sort === KW_SORT.col) ? (KW_SORT.asc?"▲":"▼") : "";
-  });
-}
-
-// ============================================================
-// EVENTS
-// ============================================================
-// ============================================================
-// SIGNALS — "what needs attention"
-// ============================================================
-const SIG = {
-  dropPct: 30,          // flag when last 7d is down this much vs prior 4-week avg
-  upPct: 50,            // highlight growth this big
-  minBase: { imp: 100, calls: 8, web: 8, dir: 8 },  // weekly baseline below this = too noisy to flag
-  staleDays: 4,         // data older than this (beyond GBP lag) = pull is probably failing
-  newKwMin: 15          // min monthly impressions for a "new keyword"
-};
-const SIG_GROUPS = [
-  { key: "imp",   label: "Impressions", metrics: IMPRESSION_METRICS },
-  { key: "calls", label: "Calls",       metrics: ["CALL_CLICKS"] },
-  { key: "web",   label: "Website",     metrics: ["WEBSITE_CLICKS"] },
-  { key: "dir",   label: "Directions",  metrics: ["BUSINESS_DIRECTION_REQUESTS"] }
-];
-
-function computeSignals() {
-  const end = META.end;
-  const curFrom = addDays(end, -6), baseFrom = addDays(end, -34), baseTo = addDays(end, -7);
-  const locs = Array.from(new Set(DAILY.map(r => r.location))).sort();
-  const acc = {};   // loc -> group -> {cur, base, curDays:Set, baseDays:Set}
-  for (const l of locs) { acc[l] = {}; for (const g of SIG_GROUPS) acc[l][g.key] = { cur: 0, base: 0, curDays: new Set(), baseDays: new Set() }; }
-  const groupOf = {}; for (const g of SIG_GROUPS) for (const m of g.metrics) groupOf[m] = g.key;
-  for (const r of DAILY) {
-    const g = groupOf[r.metric]; if (!g) continue;
-    const a = acc[r.location][g], t = r.date.getTime();
-    if (t >= curFrom.getTime() && t <= end.getTime()) { a.cur += r.value; a.curDays.add(t); }
-    else if (t >= baseFrom.getTime() && t <= baseTo.getTime()) { a.base += r.value; a.baseDays.add(t); }
-  }
-  const rows = locs.map(l => {
-    const o = { location: l };
-    for (const g of SIG_GROUPS) {
-      const a = acc[l][g.key];
-      const cur = a.curDays.size ? a.cur / a.curDays.size * 7 : null;
-      const base = a.baseDays.size ? a.base / a.baseDays.size * 7 : null;
-      const pct = (cur != null && base > 0) ? (cur - base) / base * 100 : null;
-      o[g.key] = { cur, base, pct, meaningful: base != null && base >= SIG.minBase[g.key] };
-    }
-    return o;
-  });
-  const alerts = [];
-  for (const r of rows) {
-    const imp = r.imp;
-    if (imp.base > 0 && imp.cur === 0) {
-      alerts.push({ sev: "crit", loc: r.location, title: "No impressions in the last 7 days",
-        body: `Was ~${fmtNum(imp.base)}/week. Check the listing in GBP: it may be suspended, unverified or removed.` });
-      continue;
-    }
-    for (const g of SIG_GROUPS) {
-      const v = r[g.key];
-      if (!v.meaningful || v.pct == null) continue;
-      if (v.pct <= -SIG.dropPct)
-        alerts.push({ sev: "down", loc: r.location, title: `${g.label} ${v.pct.toFixed(0)}%`,
-          body: `${fmtNum(v.cur)} last 7 days vs ~${fmtNum(v.base)}/week before.`, pct: v.pct });
-      else if (v.pct >= SIG.upPct)
-        alerts.push({ sev: "up", loc: r.location, title: `${g.label} +${v.pct.toFixed(0)}%`,
-          body: `${fmtNum(v.cur)} last 7 days vs ~${fmtNum(v.base)}/week before.`, pct: v.pct });
-    }
-  }
-  return { rows, alerts, curFrom, baseFrom, baseTo };
-}
-
-function newKeywords() {
-  // latest COMPLETE month in the keyword data vs the 3 months before it
-  const now = new Date(), curYm = now.getUTCFullYear() * 12 + now.getUTCMonth();
-  const yms = Array.from(new Set(KEYWORDS.map(r => r.year * 12 + r.month - 1))).filter(x => x < curYm).sort((a, b) => a - b);
-  if (yms.length < 2) return null;
-  const last = yms[yms.length - 1];
-  const prev = new Set(), cur = new Map();
-  for (const r of KEYWORDS) {
-    const ym = r.year * 12 + r.month - 1, k = r.keyword.toLowerCase().trim();
-    if (ym === last) {
-      if (r.isThreshold) continue;
-      const e = cur.get(k) || { keyword: r.keyword, value: 0, locs: new Set(), class: r.class };
-      e.value += r.value; e.locs.add(r.location); cur.set(k, e);
-    } else if (ym >= last - 3 && ym < last) prev.add(k);
-  }
-  const list = Array.from(cur.entries()).filter(([k, e]) => !prev.has(k) && e.value >= SIG.newKwMin)
-    .map(([, e]) => e).sort((a, b) => b.value - a.value).slice(0, 15);
-  const lbl = ym => `${Math.floor(ym / 12)}-${String(ym % 12 + 1).padStart(2, "0")}`;
-  return { month: lbl(last), since: lbl(last - 3), list };
-}
-
-function fmtDelta(pct, meaningful) {
-  if (pct == null) return `<span class="delta zero">—</span>`;
-  const cls = !meaningful ? "zero" : pct <= -SIG.dropPct ? "neg" : pct >= SIG.upPct ? "pos" : "zero";
-  const txt = pct > 999 ? ">+999%" : `${pct > 0 ? "+" : ""}${pct.toFixed(0)}%`;
-  return `<span class="delta ${cls}">${txt}</span>`;
-}
-
-function renderSignals() {
-  document.getElementById("sig-empty").style.display = "none";
-  document.getElementById("sig-content").style.display = "block";
-  document.querySelectorAll(".thr-drop").forEach(e => e.textContent = SIG.dropPct);
-  document.querySelectorAll(".thr-up").forEach(e => e.textContent = SIG.upPct);
-  const S = computeSignals();
-  const d = x => x.toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
-  document.getElementById("sig-window").textContent =
-    `Last 7 days: ${d(S.curFrom)} – ${d(META.end)}  ·  baseline: ${d(S.baseFrom)} – ${d(S.baseTo)} (weekly average)`;
-
-  // network KPIs
-  const tot = {};
-  for (const g of SIG_GROUPS) { tot[g.key] = { cur: 0, base: 0 }; for (const r of S.rows) { tot[g.key].cur += r[g.key].cur || 0; tot[g.key].base += r[g.key].base || 0; } }
-  document.getElementById("sig-kpis").innerHTML = SIG_GROUPS.map(g => {
-    const t = tot[g.key], pct = t.base > 0 ? (t.cur - t.base) / t.base * 100 : null;
-    const cls = pct == null ? "zero" : pct < 0 ? "neg" : "pos";
-    return `<div class="kpi"><div class="kpi-label">${g.label} · 7d</div><div class="kpi-value">${fmtNum(t.cur)}</div>
-      <div class="kpi-delta ${cls}">${pct == null ? "—" : (pct > 0 ? "+" : "") + pct.toFixed(0) + "% vs 4-wk avg"}</div></div>`;
-  }).join("");
-
-  // alerts
-  const order = { crit: 0, down: 1, up: 2 };
-  const al = S.alerts.sort((a, b) => order[a.sev] - order[b.sev] || (a.pct ?? 0) - (b.pct ?? 0));
-  const card = a => `<div class="alert ${a.sev}"><div class="alert-title">${esc(a.loc)} · ${esc(a.title)}</div><div class="alert-body">${esc(a.body)}</div></div>`;
-  const bad = al.filter(a => a.sev !== "up"), good = al.filter(a => a.sev === "up");
-  let html = "";
-  if (bad.length) html += `<div class="alert-group-h">Needs a look (${bad.length})</div><div class="alerts">${bad.map(card).join("")}</div>`;
-  else html += `<div class="ok-note">No location dropped ≥ ${SIG.dropPct}% this week. Nothing urgent.</div>`;
-  if (good.length) html += `<div class="alert-group-h">Growing (${good.length})</div><div class="alerts">${good.map(card).join("")}</div>`;
-  document.getElementById("sig-alerts").innerHTML = html;
-
-  // comparison table (worst impressions change first)
-  const rows = S.rows.slice().sort((a, b) => (a.imp.pct ?? 1e9) - (b.imp.pct ?? 1e9));
-  let t = `<thead><tr><th>Location</th>${SIG_GROUPS.map(g => `<th class="grp">${g.label}</th><th>4-wk avg</th>`).join("")}</tr></thead><tbody>`;
-  for (const r of rows) {
-    t += `<tr><th>${esc(r.location)}</th>` + SIG_GROUPS.map(g => {
-      const v = r[g.key];
-      return `<td class="grp">${v.cur == null ? "—" : fmtNum(v.cur)}${fmtDelta(v.pct, v.meaningful)}</td><td style="color:var(--text-faint)">${v.base == null ? "—" : fmtNum(v.base)}</td>`;
-    }).join("") + `</tr>`;
-  }
-  document.getElementById("sig-table").innerHTML = t + "</tbody>";
-
-  // new keywords
-  const nk = newKeywords(), tbl = document.getElementById("kw-new");
-  if (!nk) { tbl.innerHTML = `<tbody><tr><td style="color:var(--text-faint)">Not enough keyword history yet.</td></tr></tbody>`; return; }
-  document.getElementById("kw-new-meta").textContent = `Seen in ${nk.month} (≥ ${SIG.newKwMin} impressions), absent in the 3 months before.`;
-  tbl.innerHTML = !nk.list.length
-    ? `<tbody><tr><td style="color:var(--text-faint)">No new keywords in ${nk.month}.</td></tr></tbody>`
-    : `<thead><tr><th>Keyword</th><th>Class</th><th>Locations</th><th class="num">Impressions</th></tr></thead><tbody>` +
-      nk.list.map(e => {
-        const cls = e.class === "brand" ? "badge-brand" : e.class === "generic" ? "badge-generic" : "badge-other";
-        return `<tr><td>${esc(e.keyword)}</td><td><span class="badge ${cls}">${e.class}</span></td><td>${esc(Array.from(e.locs).join(", "))}</td><td class="num">${fmtNum(e.value)}</td></tr>`;
-      }).join("") + `</tbody>`;
-}
-
-// ============================================================
-// STATUS + BOOT
-// ============================================================
-function renderStatus() {
-  const d = x => x.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
-  const gen = new Date(META.generated_at);
-  document.getElementById("status").textContent =
-    `Data through ${d(META.end)} · refreshed ${gen.toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}`;
-  const today = new Date(); today.setUTCHours(0, 0, 0, 0);
-  const lagDays = Math.round((today - META.end) / 86400000);
-  const ban = document.getElementById("banner");
-  if (lagDays > 2 + SIG.staleDays)
-    ban.innerHTML = `<div class="banner warn">Latest data is ${lagDays} days old (normal is ~2–3). The daily pull is probably failing: check GitHub → Actions.</div>`;
-  else if (META.last_pull && META.last_pull.status === "partial")
-    ban.innerHTML = `<div class="banner warn">Last pull was partial, some locations failed: ${esc(META.last_pull.note.slice(0, 300))}</div>`;
-}
-
-async function boot() {
-  try {
-    await loadData();
-  } catch (e) {
-    document.getElementById("banner").innerHTML = `<div class="banner err">Could not load data.json: ${esc(e.message)}</div>`;
-    document.getElementById("status").textContent = "No data";
-    return;
-  }
-  renderStatus();
-  renderSignals();
-  onDailyLoaded();
-  renderKeywords();
-}
-
-function onDailyLoaded() {
-  LOC_ACTIVE = new Set(Array.from(new Set(DAILY.map(r => r.location))).sort());
-  renderLocChips();
-  setupDOWMetricSelect();
-  initDateRange();
-  renderPerformance();
-}
-
-// Tab switching
-document.querySelectorAll(".tab").forEach(t => {
-  t.addEventListener("click", () => {
-    document.querySelectorAll(".tab").forEach(x => x.classList.remove("active"));
-    t.classList.add("active");
-    document.querySelectorAll(".tab-content").forEach(x => x.classList.remove("active"));
-    document.getElementById("tab-" + t.dataset.tab).classList.add("active");
-    // Chart.js can't size a canvas drawn inside a hidden tab — redraw on show
-    if (t.dataset.tab === "keywords" && KEYWORDS.length) renderKeywords();
-    if (t.dataset.tab === "calls") window.CallsTab.show();
-  });
-});
-
-// Signed-in user (served by /api/me behind the Microsoft sign-in)
-fetch("/api/me", { cache: "no-store" }).then(r => (r.ok ? r.json() : null)).then(u => {
-  if (u && u.email) document.getElementById("whoami").innerHTML = `${esc(u.name || u.email)} · <a href="/api/auth/logout">Sign out</a>`;
-}).catch(() => {});
-
-// Segmented controls
-function wireSegment(id, target) {
-  document.querySelectorAll(`#${id} button`).forEach(b => {
-    b.addEventListener("click", () => {
-      document.querySelectorAll(`#${id} button`).forEach(x => x.classList.remove("active"));
-      b.classList.add("active");
-      UI[target] = b.dataset.val;
-      renderPerformance();
-    });
-  });
-}
-wireSegment("seg-granularity", "granularity");
-wireSegment("seg-rows", "rows");
-wireSegment("seg-cell", "cell");
-
-// Date inputs
-document.getElementById("date-from").addEventListener("change", (e) => {
-  UI.dateFrom = e.target.value ? new Date(e.target.value + "T00:00:00Z") : null;
-  renderPerformance();
-});
-document.getElementById("date-to").addEventListener("change", (e) => {
-  UI.dateTo = e.target.value ? new Date(e.target.value + "T23:59:59Z") : null;
-  renderPerformance();
-});
-document.getElementById("date-reset").addEventListener("click", () => {
-  UI.dateFrom = null; UI.dateTo = null;
-  document.getElementById("date-from").value = "";
-  document.getElementById("date-to").value = "";
-  initDateRange();
-  renderPerformance();
-});
-
-// DOW heatmap selectors
-document.getElementById("dow-metric").addEventListener("change", () => renderPerformance());
-document.getElementById("dow-cell").addEventListener("change", () => renderPerformance());
-
-// Keywords filters
-["kw-period","kw-location","kw-class"].forEach(id =>
-  document.getElementById(id).addEventListener("change", () => renderKeywords()));
-let kwT = null;
-document.getElementById("kw-search").addEventListener("input", () => {
-  clearTimeout(kwT); kwT = setTimeout(() => renderKeywords(), 200);
-});
-document.querySelectorAll("#kw-table th.sortable").forEach(th => {
-  th.addEventListener("click", () => {
-    const col = th.dataset.sort;
-    if (KW_SORT.col === col) KW_SORT.asc = !KW_SORT.asc;
-    else { KW_SORT.col = col; KW_SORT.asc = (col !== "value"); }
-    renderKeywords();
-  });
-});
-boot();
-</script>
+  </section>
+
+  <p class="foot caption-5">Це лічильники активності Google, а не ліди чи виручка. Дзвінок із профілю можна пов’язати із замовленням лише тоді, коли профіль має номер відстеження CallRail (вкладка «Дзвінки»). Джерело: Google Business Profile Performance API, публікації з Google Business API.</p>
+</main>
+
+<script src="charts.js"></script>
+<script src="intent.js"></script>
+<script src="app.js"></script>
+<script src="forecast.js"></script>
 <script src="calls.js"></script>
 </body>
 </html>

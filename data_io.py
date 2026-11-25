@@ -70,9 +70,34 @@ def cmd_import() -> None:
         for (y, m, li, kw, v, thr) in data["keywords"]["rows"]
     ]
     conn.executemany("INSERT INTO gbp_keywords VALUES (?,?,?,?,?,?,?,?)", kw_rows)
+
+    posts = data.get("posts", {})
+    pcols = posts.get("cols", [])
+    post_rows = []
+    for r in posts.get("rows", []):
+        p = dict(zip(pcols, r))
+        li = p.pop("loc")
+        post_rows.append({**p, "location_id": locs[li]["id"], "location_name": locs[li]["name"], "pulled_at": stamp})
+    if post_rows:
+        conn.executemany(
+            """INSERT INTO gbp_posts VALUES (:post_id, :location_id, :location_name, :create_time, :update_time,
+               :state, :topic_type, :summary, :cta_type, :cta_url, :media_format, :media_count, :event_title,
+               :event_start, :event_end, :search_url, :pulled_at)""", post_rows)
     conn.commit()
     conn.close()
-    print(f"Imported {len(rows)} daily + {len(kw_rows)} keyword rows into {DB_FILE.name}")
+    print(f"Imported {len(rows)} daily + {len(kw_rows)} keyword + {len(post_rows)} post rows into {DB_FILE.name}")
+
+
+POST_COLS = ["post_id", "loc", "create_time", "update_time", "state", "topic_type", "summary", "cta_type",
+             "cta_url", "media_format", "media_count", "event_title", "event_start", "event_end", "search_url"]
+
+
+def _config_locations() -> dict[str, dict]:
+    """id -> {name, address} from locations.yaml (display names win over DB history)."""
+    import yaml
+    cfg = yaml.safe_load((HERE / "locations.yaml").read_text(encoding="utf-8"))
+    return {str(l["location_id"]): {"name": l["name"], "address": l.get("address", "")}
+            for l in (cfg.get("manual_locations") or [])}
 
 
 def cmd_export() -> None:
@@ -95,6 +120,12 @@ def cmd_export() -> None:
             GROUP BY location_id ORDER BY location_name"""
     ):
         locations.append({"id": loc_id, "name": name})
+    conf = _config_locations()
+    for l in locations:
+        if l["id"] in conf:
+            l["name"] = conf[l["id"]]["name"]
+            l["address"] = conf[l["id"]]["address"]
+    locations.sort(key=lambda l: l["name"])
     loc_index = {l["id"]: i for i, l in enumerate(locations)}
 
     daily: dict[str, dict[str, list]] = {
@@ -111,6 +142,15 @@ def cmd_export() -> None:
         if loc_id not in loc_index:  # keyword-only location (shouldn't happen)
             continue
         kw_rows.append([y, m, loc_index[loc_id], kw, v, thr])
+
+    post_rows = []
+    for row in cur.execute(
+        """SELECT post_id, location_id, create_time, update_time, state, topic_type, summary, cta_type, cta_url,
+                  media_format, media_count, event_title, event_start, event_end, search_url
+             FROM gbp_posts ORDER BY location_id, create_time DESC"""
+    ):
+        if row[1] in loc_index:
+            post_rows.append([row[0], loc_index[row[1]], *row[2:]])
 
     run = cur.execute(
         "SELECT started_at, finished_at, status, note FROM pull_runs ORDER BY started_at DESC LIMIT 1"
@@ -136,13 +176,16 @@ def cmd_export() -> None:
     out.append("},")
     out.append('"keywords":{"cols":["year","month","loc","keyword","impressions","upper_bound"],"rows":[')
     out.append(",\n".join(j(r) for r in kw_rows))
+    out.append("]},")
+    out.append(f'"posts":{{"cols":{j(POST_COLS)},"rows":[')
+    out.append(",\n".join(j(r) for r in post_rows))
     out.append("]}")
     out.append("}")
     JSON_FILE.parent.mkdir(exist_ok=True)
     JSON_FILE.write_text("\n".join(out) + "\n", encoding="utf-8", newline="\n")
     size_kb = JSON_FILE.stat().st_size / 1024
     print(f"Exported {start}..{end} ({n_days} days, {len(locations)} locations) "
-          f"+ {len(kw_rows)} keyword rows -> {JSON_FILE.relative_to(HERE)} ({size_kb:.0f} KB)")
+          f"+ {len(kw_rows)} keyword rows + {len(post_rows)} posts -> {JSON_FILE.relative_to(HERE)} ({size_kb:.0f} KB)")
 
 
 if __name__ == "__main__":

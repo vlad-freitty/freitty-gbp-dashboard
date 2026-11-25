@@ -324,6 +324,69 @@ def fetch_search_keywords_for_month(
     return out
 
 
+POSTS_API_BASE = "https://mybusiness.googleapis.com/v4"
+
+
+def _gdate(d: dict | None, t: dict | None = None) -> str:
+    if not d:
+        return ""
+    s = f"{d.get('year', 0):04d}-{d.get('month', 0):02d}-{d.get('day', 0):02d}"
+    if t:
+        s += f"T{t.get('hours', 0):02d}:{t.get('minutes', 0):02d}"
+    return s
+
+
+def fetch_posts(creds, account_id: str, location_id: str) -> list[dict]:
+    """All local posts of one location (GBP v4 API; still the only posts API)."""
+    url = f"{POSTS_API_BASE}/accounts/{account_id}/locations/{location_id}/localPosts"
+    out, token = [], None
+    while True:
+        params = {"pageSize": "100"}
+        if token:
+            params["pageToken"] = token
+        data = http_get(creds, url, params)
+        for p in data.get("localPosts", []):
+            media = p.get("media") or []
+            ev = p.get("event") or {}
+            sched = ev.get("schedule") or {}
+            cta = p.get("callToAction") or {}
+            out.append({
+                "post_id": p.get("name", "").rsplit("/", 1)[-1],
+                "create_time": p.get("createTime", ""),
+                "update_time": p.get("updateTime", ""),
+                "state": p.get("state", ""),
+                "topic_type": p.get("topicType", ""),
+                "summary": p.get("summary", ""),
+                "cta_type": cta.get("actionType", ""),
+                "cta_url": cta.get("url", ""),
+                "media_format": (media[0].get("mediaFormat", "") if media else ""),
+                "media_count": len(media),
+                "event_title": ev.get("title", ""),
+                "event_start": _gdate(sched.get("startDate"), sched.get("startTime")),
+                "event_end": _gdate(sched.get("endDate"), sched.get("endTime")),
+                "search_url": p.get("searchUrl", ""),
+            })
+        token = data.get("nextPageToken")
+        if not token:
+            break
+    return out
+
+
+def db_replace_posts(conn: sqlite3.Connection, location_id: str, location_name: str,
+                     posts: list[dict], pulled_at: str) -> int:
+    """Posts are a current list, not history: replace this location's set."""
+    conn.execute("DELETE FROM gbp_posts WHERE location_id = ?", (location_id,))
+    conn.executemany(
+        """INSERT OR REPLACE INTO gbp_posts VALUES
+           (:post_id, :location_id, :location_name, :create_time, :update_time, :state, :topic_type,
+            :summary, :cta_type, :cta_url, :media_format, :media_count, :event_title, :event_start,
+            :event_end, :search_url, :pulled_at)""",
+        [{**p, "location_id": location_id, "location_name": location_name, "pulled_at": pulled_at} for p in posts],
+    )
+    conn.commit()
+    return len(posts)
+
+
 def fetch_dayofweek(
     creds,
     location_id: str,
@@ -471,6 +534,27 @@ CREATE TABLE IF NOT EXISTS gbp_dayofweek (
 CREATE INDEX IF NOT EXISTS idx_dow_loc    ON gbp_dayofweek(location_name);
 CREATE INDEX IF NOT EXISTS idx_dow_metric ON gbp_dayofweek(metric);
 CREATE INDEX IF NOT EXISTS idx_dow_day    ON gbp_dayofweek(day_of_week);
+
+CREATE TABLE IF NOT EXISTS gbp_posts (
+    post_id        TEXT    NOT NULL PRIMARY KEY,   -- last segment of the localPost name
+    location_id    TEXT    NOT NULL,
+    location_name  TEXT    NOT NULL,
+    create_time    TEXT,
+    update_time    TEXT,
+    state          TEXT,       -- LIVE / SCHEDULED / REJECTED / PROCESSING ...
+    topic_type     TEXT,       -- STANDARD / EVENT / OFFER / ALERT
+    summary        TEXT,
+    cta_type       TEXT,       -- CALL / BOOK / LEARN_MORE / ...
+    cta_url        TEXT,
+    media_format   TEXT,       -- PHOTO / VIDEO / '' (first media item)
+    media_count    INTEGER,
+    event_title    TEXT,
+    event_start    TEXT,
+    event_end      TEXT,
+    search_url     TEXT,
+    pulled_at      TEXT    NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_posts_loc ON gbp_posts(location_id);
 
 CREATE TABLE IF NOT EXISTS pull_runs (
     started_at   TEXT NOT NULL,
@@ -696,7 +780,9 @@ def resolve_locations(cfg: dict, creds, force_refresh: bool = False) -> list[dic
         if not manual:
             log.error("mode=include but no manual_locations are listed.")
             sys.exit(1)
-        return [{"name": l["name"], "location_id": str(l["location_id"])} for l in manual]
+        return [{"name": l["name"], "location_id": str(l["location_id"]),
+                 "account_id": str(l.get("account_id") or ""), "address": l.get("address") or ""}
+                for l in manual]
 
     # auto / exclude: try the cache first to avoid hitting the strict
     # Account Management API quota on every run.
@@ -795,7 +881,7 @@ def _month_range(start: dt.date, end: dt.date) -> list[tuple[int, int]]:
 
 
 def cmd_pull(backfill: bool, days_override: int | None, export_only: bool,
-             refresh_locations: bool = False) -> int:
+             refresh_locations: bool = False, only: str | None = None) -> int:
     import time as _time
     cfg = load_config()
     metrics = cfg["metrics"]
@@ -816,6 +902,11 @@ def cmd_pull(backfill: bool, days_override: int | None, export_only: bool,
 
     creds = get_credentials()
     locations = resolve_locations(cfg, creds, force_refresh=refresh_locations)
+    if only:
+        wanted = {w.strip().lower() for w in only.split(",") if w.strip()}
+        locations = [l for l in locations
+                     if l["name"].lower() in wanted or str(l["location_id"]) in wanted]
+        log.info("--locations filter: %d location(s) selected", len(locations))
     if not locations:
         log.error("No locations to pull. Check locations.yaml.")
         return 1
@@ -882,7 +973,7 @@ def cmd_pull(backfill: bool, days_override: int | None, export_only: bool,
         log.info("")
         log.info("=== PHASE 2: search keywords (monthly) ===")
         months = _month_range(start, end)
-        log.info("Months to pull: %d (from %d-%02d to %d-%02d) × %d locations = %d requests",
+        log.info("Months to pull: %d (from %d-%02d to %d-%02d) x %d locations = %d requests",
                  len(months), months[0][0], months[0][1], months[-1][0], months[-1][1],
                  len(locations), len(months) * len(locations))
 
@@ -920,7 +1011,7 @@ def cmd_pull(backfill: bool, days_override: int | None, export_only: bool,
     if enable_dayofweek:
         log.info("")
         log.info("=== PHASE 3: day-of-week breakdown ===")
-        log.info("Pulling %d locations × 7 weekdays × %d metrics = %d requests",
+        log.info("Pulling %d locations x 7 weekdays x %d metrics = %d requests",
                  len(locations), len(dow_metrics), len(locations) * 7)
 
         dow_rows: list[tuple] = []
@@ -945,6 +1036,29 @@ def cmd_pull(backfill: bool, days_override: int | None, export_only: bool,
         all_failures.extend(f"Phase3/{f['name']}: {f['error']}" for f in dow_failures)
     else:
         log.info("Phase 3 (day-of-week) disabled in config; skipping.")
+
+    # =====================================================================
+    # PHASE 4 — local posts (current list per location)
+    # =====================================================================
+    if bool(cfg.get("enable_posts", True)):
+        log.info("")
+        log.info("=== PHASE 4: local posts ===")
+        n_posts = 0
+        for i, loc in enumerate(locations):
+            name, loc_id, acc = loc["name"], str(loc["location_id"]), loc.get("account_id")
+            if not acc:
+                log.warning("  [%d/%d] %-30s no account_id in locations.yaml — skipping posts", i + 1, len(locations), name)
+                continue
+            try:
+                posts = fetch_posts(creds, acc, loc_id)
+                n_posts += db_replace_posts(conn, loc_id, name, posts, pulled_at)
+                log.info("  [%d/%d] %-30s OK  %d posts", i + 1, len(locations), name, len(posts))
+            except Exception as e:
+                log.error("  [%d/%d] %-30s posts error: %s", i + 1, len(locations), name, e)
+                all_failures.append(f"Phase4/{name}: {e}")
+            if pause_between > 0 and i < len(locations) - 1:
+                _time.sleep(pause_between)
+        log.info("Phase 4 done: %d posts", n_posts)
 
     # =====================================================================
     # CSV exports
@@ -981,6 +1095,8 @@ def main() -> int:
     p.add_argument("--export-only", action="store_true", help="Skip API, just re-export CSV from DB")
     p.add_argument("--list-locations", action="store_true", help="List all GBP locations visible to your account")
     p.add_argument("--refresh-locations", action="store_true", help="Force-refresh the auto-mode location cache before pulling")
+    p.add_argument("--locations", default=None,
+                   help='Only these locations (comma-separated names or ids), e.g. for a new hub backfill')
     p.add_argument("--auth", action="store_true", help="Only (re)authorize and write token.json (for the GitHub secret)")
     args = p.parse_args()
 
@@ -998,6 +1114,7 @@ def main() -> int:
         days_override=args.days,
         export_only=args.export_only,
         refresh_locations=args.refresh_locations,
+        only=args.locations,
     )
 
 
